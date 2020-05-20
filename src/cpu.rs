@@ -1,3 +1,6 @@
+use super::stack::{Stack, StackError};
+use rand::Rng;
+
 pub enum CPUError {
     ComputationError(String),
 }
@@ -36,12 +39,29 @@ impl CPU {
             //CLS
             (0x0, 0x0, 0xE, 0x0) => display.clear_momory(),
             //RET
-            (0x0, 0x0, 0xE, 0xE) => self.pc = self.stack.pop(),
+            (0x0, 0x0, 0xE, 0xE) => {
+                self.pc = match self.stack.pop() {
+                    Ok(val) => val,
+                    Err(StackError) => {
+                        return Err(CPUError::ComputationError(format!(
+                            "Tried to pop from an empty stack!"
+                        )))
+                    }
+                }
+            }
             //JP addr
             (0x1, _, _, _) => self.pc = nnn,
             //CALL addr
             (0x2, _, _, _) => {
-                self.stack.push(self.pc);
+                match self.stack.push(self.pc) {
+                    Ok(_) => {}
+                    Err(StackError) => {
+                        return Err(CPUError::ComputationError(format!(
+                            "Tried to push to a full stack!"
+                        )))
+                    }
+                }
+
                 self.pc = nnn;
             }
             //SE Vx byte
@@ -91,13 +111,49 @@ impl CPU {
                 }
                 self.v[x] = self.v[x] - self.v[y];
             }
-            //8XY6[a]
-            //8XY7[a]
-            //8XYE[a]
-            //9XY0
-            //ANNN
-            //BNNN
-            //CXNN
+            //SHR Vx
+            (0x8, _, _, 0x6) => {
+                if self.v[x] & 0x1 == 0x1 {
+                    self.v[0xF] = 1;
+                } else {
+                    self.v[0xF] = 0;
+                }
+                self.v[x] = self.v[x] >> 1;
+            }
+            //SUBN Vx Vy
+            (0x8, _, _, 0x7) => {
+                if self.v[y] > self.v[x] {
+                    self.v[0xF] = 1
+                } else {
+                    self.v[0xF] = 0
+                }
+                self.v[x] = self.v[y] - self.v[x];
+            }
+            //SHL Vx
+            (0x8, _, _, 0xE) => {
+                if self.v[x] & 0x80 == 0x80 {
+                    self.v[0xF] = 1;
+                } else {
+                    self.v[0xF] = 0;
+                }
+                self.v[x] = self.v[x] << 1;
+            }
+            //SNE Vx, Vy
+            (0x9, _, _, 0x0) => {
+                if self.v[x] != self.v[y] {
+                    self.pc = self.pc + 2;
+                }
+            }
+            //LD I addr
+            (0xA, _, _, _) => self.i = nnn,
+            //JP V0, addr
+            (0xB, _, _, _) => self.pc = (self.v[0] as u16) + nnn,
+            //RND Vx byte
+            (0xC, _, _, _) => {
+                let mut rng = rand::thread_rng();
+                let n1: u8 = rng.gen();
+                self.v[x] = n1 & kk;
+            }
             //DXYN
             //EX9E
             //EXA1

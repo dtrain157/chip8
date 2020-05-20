@@ -10,7 +10,7 @@ pub struct Stack {
 }
 
 impl Stack {
-    fn push(&mut self, value: u16) -> Result<(), StackError> {
+    pub fn push(&mut self, value: u16) -> Result<(), StackError> {
         if self.sp == (STACK_SIZE - 1) {
             return Err(StackError::PushToFullStack);
         }
@@ -20,7 +20,7 @@ impl Stack {
         Ok(())
     }
 
-    fn pop(&mut self) -> Result<u16, StackError> {
+    pub fn pop(&mut self) -> Result<u16, StackError> {
         if self.sp == 0 {
             return Err(StackError::PopFromEmptyStack);
         }
