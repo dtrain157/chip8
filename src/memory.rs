@@ -88,9 +88,10 @@ mod memory_tests {
     #[test]
     fn memory_read_word() {
         let mut mem = Memory::new();
+        mem.memory[0] = 1 as u8;
         mem.memory[1] = 2 as u8;
         let data = mem.read_word(0).unwrap();
-        assert_eq!(data, 0x0102);
+        assert_eq!(data, 0x102);
     }
 
     #[test]
@@ -101,7 +102,7 @@ mod memory_tests {
         mem.memory[3] = 4 as u8;
         mem.memory[4] = 5 as u8;
 
-        let expected_result = vec![1, 2, 3, 4, 5];
+        let expected_result = vec![0, 2, 3, 4, 5];
         let actual_result = mem.read_multiple_bytes(0, 5).unwrap();
         assert!(expected_result.len() == actual_result.len() && expected_result == actual_result);
     }

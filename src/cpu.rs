@@ -33,6 +33,8 @@ impl CPU {
     }
 
     pub fn process_opcode(&mut self, opcode: u16, display: &mut Display, memory: &mut Memory) -> Result<(), CPUError> {
+        let mut should_update_pc_after_processing = true;
+
         //get typical opcode values from opcode
         let x = ((opcode & 0x0F00) >> 8) as usize;
         let y = ((opcode & 0x00F0) >> 4) as usize;
@@ -51,19 +53,22 @@ impl CPU {
             //RET
             (0x0, 0x0, 0xE, 0xE) => {
                 self.pc = match self.stack.pop() {
-                    Ok(val) => val,
+                    Ok(val) => val - 2,
                     Err(e) => return Err(CPUError::ErrorAccessingStack(e)),
-                }
+                };
             }
             //JP addr
-            (0x1, _, _, _) => self.pc = nnn,
+            (0x1, _, _, _) => {
+                self.pc = nnn;
+                should_update_pc_after_processing = false;
+            }
             //CALL addr
             (0x2, _, _, _) => {
                 match self.stack.push(self.pc) {
                     Ok(_) => {}
                     Err(e) => return Err(CPUError::ErrorAccessingStack(e)),
                 }
-
+                should_update_pc_after_processing = false;
                 self.pc = nnn;
             }
             //SE Vx byte
@@ -232,6 +237,10 @@ impl CPU {
             _ => return Err(CPUError::InvalidOpcodeEncountered(opcode, self.pc)),
         }
 
+        if should_update_pc_after_processing {
+            self.pc = self.pc + 2;
+        }
+
         Ok(())
     }
 }
@@ -262,5 +271,66 @@ impl error::Error for CPUError {
             CPUError::ErrorAccessingMemory(ref e) => Some(e),
             CPUError::InvalidOpcodeEncountered(_opcode, _addr) => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod cpu_tests {
+    use super::*;
+
+    #[test]
+    fn cpu_call_ret() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+
+        let opcode = 0x2111; //call function at addr 0x111
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+
+        assert_eq!(cpu.pc, 0x111);
+
+        let opcode = 0x2222; //call function at addr 0x222
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+
+        assert_eq!(cpu.pc, 0x222);
+
+        let opcode = 0x00EE; //return from first function
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+
+        assert_eq!(cpu.pc, 0x111);
+
+        let opcode = 0x00EE; //return from second function
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+
+        assert_eq!(cpu.pc, 0x200);
+    }
+
+    #[test]
+    fn cpu_jmp() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+
+        let opcode = 0x1859; //call function at addr 0x111
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+
+        assert_eq!(cpu.pc, 0x859);
+    }
+
+    #[test]
+    fn cpu_ld_vx_byte_se() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        assert_eq!(cpu.pc, 0x200);
+
+        let opcode = 0x6822; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        assert_eq!(cpu.v[8], 0x22);
+        assert_eq!(cpu.pc, 0x202);
+
+        let opcode = 0x3822; //skip the next instruction (condition v[8] = 0x22 is true)
+        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        assert_eq!(cpu.pc, 0x206);
     }
 }

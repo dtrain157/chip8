@@ -20,8 +20,7 @@ impl Stack {
         if self.sp == (STACK_SIZE - 1) {
             return Err(StackError::PushToFullStack);
         }
-
-        self.stack[self.sp as usize] = value;
+        self.stack[self.sp] = value;
         self.sp = self.sp + 1;
         Ok(())
     }
@@ -30,9 +29,8 @@ impl Stack {
         if self.sp == 0 {
             return Err(StackError::PopFromEmptyStack);
         }
-        let return_value = self.stack[self.sp];
         self.sp = self.sp - 1;
-
+        let return_value = self.stack[self.sp];
         Ok(return_value)
     }
 }
@@ -53,3 +51,16 @@ impl fmt::Display for StackError {
 }
 
 impl error::Error for StackError {}
+
+#[cfg(test)]
+mod stack_tests {
+    use super::*;
+
+    #[test]
+    fn stack_push_pop() {
+        let mut stack = Stack::new();
+        stack.push(0x1111).unwrap();
+        let popped_value = stack.pop().unwrap();
+        assert_eq!(popped_value, 0x1111);
+    }
+}
