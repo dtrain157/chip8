@@ -1,33 +1,13 @@
 pub mod cpu;
+pub mod display;
+pub mod memory;
 pub mod stack;
 
-use cpu::{CPUError, CPU};
-use stack::{Stack, StackError};
+use cpu::CPU;
+use display::Display;
+use memory::Memory;
 
-struct Display {
-    memory: [u8; 2048],
-}
-
-impl Display {
-    fn clear_momory(&mut self) {
-        self.memory = [0; 2048];
-    }
-}
-
-struct Memory {
-    memory: [u8; 4096],
-}
-
-impl Memory {
-    fn clear(&mut self) {
-        self.memory = [0; 4096];
-    }
-
-    fn read(&self, index: u16) -> u16 {
-        ((self.memory[index as usize] as u16) << 8) | (self.memory[(index + 1) as usize] as u16)
-    }
-}
-
+#[allow(dead_code)]
 struct Chip8 {
     cpu: CPU,
     memory: Memory,
@@ -35,31 +15,19 @@ struct Chip8 {
 }
 
 impl Chip8 {
-    pub fn execute_cycle(&mut self) {
-        let opcode = self.memory.read(self.cpu.pc);
-        self.cpu.process_opcode(opcode, &mut self.display);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn memory_clear() {
-        let mut mem = Memory { memory: [1; 4096] };
-        mem.clear();
-        let t1 = mem.memory;
-        let t2 = [0; 4096];
-        assert_eq!(t1.len(), t2.len());
-        assert!(t1.iter().zip(t2.iter()).all(|(a, b)| a == b));
+    #[allow(dead_code)]
+    pub fn power_up() -> Self {
+        Chip8 {
+            cpu: CPU::new(),
+            memory: Memory::new(),
+            display: Display::new(),
+        }
     }
 
-    #[test]
-    fn memory_read() {
-        let mut mem = Memory { memory: [1; 4096] };
-        mem.memory[1] = 2 as u8;
-        let pos0 = mem.read(0);
-        assert_eq!(pos0, 0x0102);
+    #[allow(dead_code)]
+    pub fn execute_cycle(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        let opcode = self.memory.read_word(self.cpu.pc as usize)?;
+        self.cpu.process_opcode(opcode, &mut self.display, &mut self.memory)?;
+        Ok(())
     }
 }

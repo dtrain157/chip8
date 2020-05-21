@@ -1,31 +1,41 @@
+use super::display::Display;
+use super::memory::{Memory, MemoryError};
 use super::stack::{Stack, StackError};
 use rand::Rng;
+use std::error;
+use std::fmt;
 
-pub enum CPUError {
-    ComputationError(String),
-}
-
+const REGISTER_COUNT: usize = 16;
 pub struct CPU {
+    //program counter
+    pub pc: u16,
     //data registers
-    v: [u8; 16],
+    v: [u8; REGISTER_COUNT],
     //address register
     i: u16,
-    //program counter
-    pc: u16,
     //timers
-    delay_timer: u16,
-    sound_timer: u16,
+    delay_timer: u8,
+    sound_timer: u8,
     //stack
     stack: Stack,
 }
 
 impl CPU {
-    fn process_opcode(&mut self, opcode: u16, display: &mut Display) -> Result<(), CPUError> {
+    pub fn new() -> Self {
+        CPU {
+            pc: 0x200,
+            v: [0; REGISTER_COUNT],
+            i: 0,
+            delay_timer: 0,
+            sound_timer: 0,
+            stack: Stack::new(),
+        }
+    }
+
+    pub fn process_opcode(&mut self, opcode: u16, display: &mut Display, memory: &mut Memory) -> Result<(), CPUError> {
         //get typical opcode values from opcode
         let x = ((opcode & 0x0F00) >> 8) as usize;
         let y = ((opcode & 0x00F0) >> 4) as usize;
-        let vx = self.v[x];
-        let vy = self.v[y];
         let nnn = opcode & 0x0FFF;
         let kk = (opcode & 0x00FF) as u8;
         let n = (opcode & 0x000F) as u8;
@@ -42,11 +52,7 @@ impl CPU {
             (0x0, 0x0, 0xE, 0xE) => {
                 self.pc = match self.stack.pop() {
                     Ok(val) => val,
-                    Err(StackError) => {
-                        return Err(CPUError::ComputationError(format!(
-                            "Tried to pop from an empty stack!"
-                        )))
-                    }
+                    Err(e) => return Err(CPUError::ErrorAccessingStack(e)),
                 }
             }
             //JP addr
@@ -55,11 +61,7 @@ impl CPU {
             (0x2, _, _, _) => {
                 match self.stack.push(self.pc) {
                     Ok(_) => {}
-                    Err(StackError) => {
-                        return Err(CPUError::ComputationError(format!(
-                            "Tried to push to a full stack!"
-                        )))
-                    }
+                    Err(e) => return Err(CPUError::ErrorAccessingStack(e)),
                 }
 
                 self.pc = nnn;
@@ -96,7 +98,7 @@ impl CPU {
             (0x8, _, _, 0x3) => self.v[x] = self.v[x] ^ self.v[y],
             //ADD Vx Vy
             (0x8, _, _, 0x4) => {
-                let res = self.v[x] + self.v[y];
+                let res = (self.v[x] as u16) + (self.v[y] as u16);
                 if res > 255 {
                     self.v[0xF as usize] = 1;
                 }
@@ -154,26 +156,111 @@ impl CPU {
                 let n1: u8 = rng.gen();
                 self.v[x] = n1 & kk;
             }
-            //DXYN
-            //EX9E
-            //EXA1
-            //FX07
-            //FX0A
-            //FX15
-            //FX18
-            //FX1E
-            //FX29
-            //FX33
-            //FX55
-            //FX65
-            _ => {
-                return Err(CPUError::ComputationError(format!(
-                    "Unknown opcode: {:#04x}",
-                    opcode
-                )))
+            //DRW Vx Vy
+            (0xD, _, _, _) => {
+                let data = match memory.read_multiple_bytes(self.i as usize, n) {
+                    Ok(data) => data,
+                    Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                };
+                //implement display logic here
+                todo! {}
             }
+            //SKP Vx
+            (0xE, _, 0x9, 0xE) => {
+                //implement input logic here
+                todo! {}
+            }
+            //SKNP Vx
+            (0xE, _, 0xA, 0x1) => {
+                //implement input logic here
+                todo! {}
+            }
+            //LD Vx DT
+            (0xF, _, 0x0, 0x7) => self.v[x] = self.delay_timer,
+            //LD Vx K
+            (0xF, _, 0x0, 0xA) => {
+                //implement input logic here
+                todo! {}
+            }
+            //LD DT Vx
+            (0xF, _, 0x1, 0x5) => self.delay_timer = self.v[x],
+            //LD ST Vx
+            (0xF, _, 0x1, 0x8) => self.sound_timer = self.v[x],
+            //ADD I Vx
+            (0xF, _, 0x1, 0xE) => self.i = self.i + (self.v[x] as u16),
+            //LD F Vx
+            (0xF, _, 0x2, 0x9) => {
+                //implement display logic here
+                todo! {}
+            }
+            //LD B Vx
+            (0xF, _, 0x3, 0x3) => {
+                let hundreds = self.v[x] % 100;
+                let tens = (self.v[x] - hundreds * 100) % 10;
+                let ones = self.v[x] - hundreds * 100 - tens * 10;
+                match memory.write_byte(self.i as usize, hundreds) {
+                    Ok(_) => {}
+                    Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                }
+                match memory.write_byte((self.i + 1) as usize, tens) {
+                    Ok(_) => {}
+                    Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                }
+                match memory.write_byte((self.i + 2) as usize, ones) {
+                    Ok(_) => {}
+                    Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                }
+            }
+            //LD I Vx
+            (0xF, _, 0x5, 0x5) => {
+                for j in 0..REGISTER_COUNT - 1 {
+                    match memory.write_byte((self.i as usize) + j, self.v[j]) {
+                        Ok(_) => {}
+                        Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                    }
+                }
+            }
+            //LD Vx I
+            (0xF, _, 0x6, 0x5) => {
+                for j in 0..REGISTER_COUNT - 1 {
+                    self.v[j] = match memory.read_byte((self.i as usize) + j) {
+                        Ok(byte) => byte,
+                        Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
+                    }
+                }
+            }
+            _ => return Err(CPUError::InvalidOpcodeEncountered(opcode, self.pc)),
         }
 
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub enum CPUError {
+    ErrorAccessingStack(StackError),
+    ErrorAccessingMemory(MemoryError),
+    InvalidOpcodeEncountered(u16, u16),
+}
+
+impl fmt::Display for CPUError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            CPUError::ErrorAccessingStack(ref e) => e.fmt(f),
+            CPUError::ErrorAccessingMemory(ref e) => e.fmt(f),
+            CPUError::InvalidOpcodeEncountered(opcode, addr) => {
+                write!(f, "Unknown opcode encountered as addr {:#04X}: {:#04X}", opcode, addr)
+            }
+        }
+    }
+}
+
+impl error::Error for CPUError {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match *self {
+            CPUError::ErrorAccessingStack(ref e) => Some(e),
+            CPUError::ErrorAccessingMemory(ref e) => Some(e),
+            CPUError::InvalidOpcodeEncountered(_opcode, _addr) => None,
+        }
     }
 }

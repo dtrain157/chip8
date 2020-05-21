@@ -1,15 +1,21 @@
-pub enum StackError {
-    PushToFullStack,
-    PopFromEmptyStack,
-}
+use std::error;
+use std::fmt;
 
-const STACK_SIZE: usize = 16;
+const STACK_SIZE: usize = 16; //support up to 16 levels
+
 pub struct Stack {
-    stack: [u16; STACK_SIZE], //support up to 16 levels
+    stack: [u16; STACK_SIZE],
     sp: usize,
 }
 
 impl Stack {
+    pub fn new() -> Self {
+        Stack {
+            stack: [0; STACK_SIZE],
+            sp: 0,
+        }
+    }
+
     pub fn push(&mut self, value: u16) -> Result<(), StackError> {
         if self.sp == (STACK_SIZE - 1) {
             return Err(StackError::PushToFullStack);
@@ -30,3 +36,20 @@ impl Stack {
         Ok(return_value)
     }
 }
+
+#[derive(Debug)]
+pub enum StackError {
+    PushToFullStack,
+    PopFromEmptyStack,
+}
+
+impl fmt::Display for StackError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            StackError::PushToFullStack => write!(f, "Tried to push to a full stack!"),
+            StackError::PopFromEmptyStack => write!(f, "Tried to pop from an empty stack!"),
+        }
+    }
+}
+
+impl error::Error for StackError {}
