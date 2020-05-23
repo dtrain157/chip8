@@ -3,17 +3,43 @@ use std::fmt;
 
 pub const MEMORY_SIZE: usize = 4096; //support 4k of memory
 
+pub const FONT_CHARACTERS: [u8; 80] = [
+    0xF0, 0x90, 0x90, 0x90, 0xF0, //"0" Character
+    0x20, 0x60, 0x20, 0x20, 0x70, //"1" Character
+    0xF0, 0x10, 0xF0, 0x80, 0xF0, //"2" Character
+    0xF0, 0x10, 0xF0, 0x10, 0xF0, //"3" Character
+    0x90, 0x90, 0xF0, 0x10, 0x10, //"4" Character
+    0xF0, 0x80, 0xF0, 0x10, 0xF0, //"5" Character
+    0xF0, 0x80, 0xF0, 0x90, 0xF0, //"6" Character
+    0xF0, 0x10, 0x20, 0x40, 0x40, //"7" Character
+    0xF0, 0x90, 0xF0, 0x90, 0xF0, //"8" Character
+    0xF0, 0x90, 0xF0, 0x10, 0xF0, //"9" Character
+    0xF0, 0x90, 0xF0, 0x90, 0x90, //"A" Character
+    0xE0, 0x90, 0xE0, 0x90, 0xE0, //"B" Character
+    0xF0, 0x80, 0x80, 0x80, 0xF0, //"C" Character
+    0xE0, 0x90, 0x90, 0x90, 0xE0, //"D" Character
+    0xF0, 0x80, 0xF0, 0x80, 0xF0, //"E" Character
+    0xF0, 0x80, 0xF0, 0x80, 0x80, //"F" Character
+];
+
+const FONT_CHARACTER_SIZE: usize = 5; //size in bytes
+
 pub struct Memory {
     memory: [u8; MEMORY_SIZE],
 }
 
 impl Memory {
     pub fn new() -> Self {
-        Memory { memory: [0; MEMORY_SIZE] }
+        let mut mem = Memory { memory: [0; MEMORY_SIZE] };
+        mem.clear();
+        mem
     }
 
     pub fn clear(&mut self) {
         self.memory = [0; MEMORY_SIZE];
+        for i in 0..FONT_CHARACTERS.len() {
+            self.memory[i] = FONT_CHARACTERS[i];
+        }
     }
 
     pub fn read_word(&self, index: usize) -> Result<u16, MemoryError> {
@@ -54,6 +80,10 @@ impl Memory {
         self.memory[index as usize] = byte;
         Ok(())
     }
+
+    pub fn get_location_of_font_character(&self, character: u8) -> usize {
+        (character as usize) * FONT_CHARACTER_SIZE
+    }
 }
 
 #[derive(Debug)]
@@ -76,16 +106,6 @@ mod memory_tests {
     use super::*;
 
     #[test]
-    fn memory_clear() {
-        let mut mem = Memory::new();
-        mem.clear();
-        let t1 = mem.memory;
-        let t2 = [0; MEMORY_SIZE];
-        assert_eq!(t1.len(), t2.len());
-        assert!(t1.iter().zip(t2.iter()).all(|(a, b)| a == b));
-    }
-
-    #[test]
     fn memory_read_word() {
         let mut mem = Memory::new();
         mem.memory[0] = 1 as u8;
@@ -102,7 +122,7 @@ mod memory_tests {
         mem.memory[3] = 4 as u8;
         mem.memory[4] = 5 as u8;
 
-        let expected_result = vec![0, 2, 3, 4, 5];
+        let expected_result = vec![240, 2, 3, 4, 5];
         let actual_result = mem.read_multiple_bytes(0, 5).unwrap();
         assert!(expected_result.len() == actual_result.len() && expected_result == actual_result);
     }

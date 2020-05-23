@@ -1,4 +1,5 @@
 use super::display::Display;
+use super::keyboard::Keyboard;
 use super::memory::{Memory, MemoryError};
 use super::stack::{Stack, StackError};
 use rand::Rng;
@@ -32,7 +33,7 @@ impl CPU {
         }
     }
 
-    pub fn process_opcode(&mut self, opcode: u16, display: &mut Display, memory: &mut Memory) -> Result<(), CPUError> {
+    pub fn process_opcode(&mut self, opcode: u16, display: &mut Display, memory: &mut Memory, keyboard: &Keyboard) -> Result<(), CPUError> {
         let mut should_update_pc_after_processing = true;
 
         //get typical opcode values from opcode
@@ -49,7 +50,7 @@ impl CPU {
 
         match (nibble1, nibble2, nibble3, nibble4) {
             //CLS
-            (0x0, 0x0, 0xE, 0x0) => display.clear_momory(),
+            (0x0, 0x0, 0xE, 0x0) => display.clear(),
             //RET
             (0x0, 0x0, 0xE, 0xE) => {
                 self.pc = match self.stack.pop() {
@@ -167,26 +168,34 @@ impl CPU {
                     Ok(data) => data,
                     Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
                 };
-                //implement display logic here
-                todo! {}
+                let location = (self.v[x] as usize, self.v[y] as usize);
+                self.v[0xF] = display.draw(data, location) as u8;
             }
             //SKP Vx
-            (0xE, _, 0x9, 0xE) => {
-                //implement input logic here
-                todo! {}
-            }
+            (0xE, _, 0x9, 0xE) => match keyboard.get_key_pressed() {
+                Some(key) => {
+                    if self.v[x] == key {
+                        self.pc = self.pc + 2;
+                    }
+                }
+                None => {}
+            },
             //SKNP Vx
-            (0xE, _, 0xA, 0x1) => {
-                //implement input logic here
-                todo! {}
-            }
+            (0xE, _, 0xA, 0x1) => match keyboard.get_key_pressed() {
+                Some(key) => {
+                    if self.v[x] != key {
+                        self.pc = self.pc + 2;
+                    }
+                }
+                None => {}
+            },
             //LD Vx DT
             (0xF, _, 0x0, 0x7) => self.v[x] = self.delay_timer,
             //LD Vx K
-            (0xF, _, 0x0, 0xA) => {
-                //implement input logic here
-                todo! {}
-            }
+            (0xF, _, 0x0, 0xA) => match keyboard.get_key_pressed() {
+                Some(key) => self.v[x] = key,
+                None => should_update_pc_after_processing = false,
+            },
             //LD DT Vx
             (0xF, _, 0x1, 0x5) => self.delay_timer = self.v[x],
             //LD ST Vx
@@ -194,10 +203,7 @@ impl CPU {
             //ADD I Vx
             (0xF, _, 0x1, 0xE) => self.i = self.i + (self.v[x] as u16),
             //LD F Vx
-            (0xF, _, 0x2, 0x9) => {
-                //implement display logic here
-                todo! {}
-            }
+            (0xF, _, 0x2, 0x9) => self.i = memory.get_location_of_font_character(self.v[x]) as u16,
             //LD B Vx
             (0xF, _, 0x3, 0x3) => {
                 let hundreds = self.v[x] % 100;
@@ -283,24 +289,25 @@ mod cpu_tests {
         let mut cpu = CPU::new();
         let mut display = Display::new();
         let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
 
         let opcode = 0x2111; //call function at addr 0x111
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
         assert_eq!(cpu.pc, 0x111);
 
         let opcode = 0x2222; //call function at addr 0x222
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
         assert_eq!(cpu.pc, 0x222);
 
         let opcode = 0x00EE; //return from first function
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
         assert_eq!(cpu.pc, 0x111);
 
         let opcode = 0x00EE; //return from second function
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
         assert_eq!(cpu.pc, 0x200);
     }
@@ -310,9 +317,10 @@ mod cpu_tests {
         let mut cpu = CPU::new();
         let mut display = Display::new();
         let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
 
         let opcode = 0x1859; //call function at addr 0x111
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
         assert_eq!(cpu.pc, 0x859);
     }
@@ -322,15 +330,16 @@ mod cpu_tests {
         let mut cpu = CPU::new();
         let mut display = Display::new();
         let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
         assert_eq!(cpu.pc, 0x200);
 
         let opcode = 0x6822; //load 0x22 into v[8]
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
         assert_eq!(cpu.v[8], 0x22);
         assert_eq!(cpu.pc, 0x202);
 
         let opcode = 0x3822; //skip the next instruction (condition v[8] = 0x22 is true)
-        cpu.process_opcode(opcode, &mut display, &mut memory).unwrap();
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
         assert_eq!(cpu.pc, 0x206);
     }
 }
