@@ -1,16 +1,16 @@
+use std::fmt;
+
 pub const COLUMNS: usize = 64;
 pub const ROWS: usize = 32;
 pub const DISPLAY_MEMORY_SIZE: usize = COLUMNS * ROWS;
 
 pub struct Display {
-    memory: [u8; DISPLAY_MEMORY_SIZE],
+    pub memory: [u8; DISPLAY_MEMORY_SIZE],
 }
 
 impl Display {
     pub fn new() -> Self {
-        Display {
-            memory: [0; DISPLAY_MEMORY_SIZE],
-        }
+        Display { memory: [0; DISPLAY_MEMORY_SIZE] }
     }
 
     pub fn clear(&mut self) {
@@ -19,15 +19,24 @@ impl Display {
 
     pub fn draw(&mut self, sprite: &[u8], location: (usize, usize)) -> bool {
         let (x, y) = location;
-        let x = self.wrap(x, ROWS);
-        let y = self.wrap(y, COLUMNS);
+        let x = self.wrap(x, COLUMNS);
+        let y = self.wrap(y, ROWS);
         let mut is_pixel_erased = false;
         for (i, byte) in sprite.into_iter().enumerate() {
-            let location = (COLUMNS * (y + i)) + x;
-            let before = self.memory[location];
-            let after = before ^ *byte;
-            self.memory[location] = after;
-            is_pixel_erased = is_pixel_erased || self.was_pixel_ersased(before, after);
+            let yi = self.wrap(y + i, ROWS);
+            for j in 0..8 {
+                let xi = self.wrap(x + j, COLUMNS);
+                let insert_location = (COLUMNS * yi) + xi;
+                let bit = (*byte >> (7 - j)) & 0x01;
+                if self.memory[insert_location] != bit {
+                    self.memory[insert_location] = 1;
+                } else {
+                    if self.memory[insert_location] == 1 {
+                        self.memory[insert_location] = 0;
+                        is_pixel_erased = true;
+                    }
+                }
+            }
         }
         is_pixel_erased
     }
@@ -39,32 +48,23 @@ impl Display {
         }
         wrapped_value
     }
+}
 
-    fn was_pixel_ersased(&self, before: u8, after: u8) -> bool {
-        before & after != before
+impl fmt::Display for Display {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for j in 0..ROWS - 1 {
+            for i in 0..COLUMNS - 1 {
+                write!(f, "{} ", self.memory[(COLUMNS * j) + i])?;
+            }
+            writeln!(f, "")?;
+        }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod display_tests {
     use super::*;
-
-    #[test]
-    fn display_was_pixel_erased() {
-        let disp = Display::new();
-
-        let before = 0xFF;
-        let after = 0xF0;
-        assert_eq!(disp.was_pixel_ersased(before, after), true);
-
-        let before = 0xF0;
-        let after = 0xFF;
-        assert_eq!(disp.was_pixel_ersased(before, after), false);
-
-        let before = 0xF0;
-        let after = 0x20;
-        assert_eq!(disp.was_pixel_ersased(before, after), true);
-    }
 
     #[test]
     fn display_wrap() {
@@ -86,9 +86,10 @@ mod display_tests {
         disp.clear();
         let pixel_erased = disp.draw(&data, location);
 
-        assert_eq!(disp.memory[130], 0x01);
-        assert_eq!(disp.memory[194], 0x02);
-        assert_eq!(disp.memory[258], 0x03);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 9], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 8], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 8], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 9], 1);
         assert_eq!(pixel_erased, false);
 
         // -- 2 -- //
@@ -97,9 +98,32 @@ mod display_tests {
 
         let pixel_erased = disp.draw(&data, location);
 
-        assert_eq!(disp.memory[130], 0xF1);
-        assert_eq!(disp.memory[194], 0xF2);
-        assert_eq!(disp.memory[258], 0xF3);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 8], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 9], 1);
+
+        assert_eq!(disp.memory[(COLUMNS * 3) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 8], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 9], 0);
+
+        assert_eq!(disp.memory[(COLUMNS * 4) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 8], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 9], 1);
         assert_eq!(pixel_erased, false);
 
         // -- 3 -- //
@@ -108,9 +132,32 @@ mod display_tests {
 
         let pixel_erased = disp.draw(&data, location);
 
-        assert_eq!(disp.memory[130], 0xF0);
-        assert_eq!(disp.memory[194], 0xF0);
-        assert_eq!(disp.memory[258], 0xF0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 8], 0);
+        assert_eq!(disp.memory[(COLUMNS * 2) + 9], 0);
+
+        assert_eq!(disp.memory[(COLUMNS * 3) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 8], 0);
+        assert_eq!(disp.memory[(COLUMNS * 3) + 9], 0);
+
+        assert_eq!(disp.memory[(COLUMNS * 4) + 2], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 3], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 4], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 5], 1);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 6], 0);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 7], 0);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 8], 0);
+        assert_eq!(disp.memory[(COLUMNS * 4) + 9], 0);
         assert_eq!(pixel_erased, true);
     }
 }

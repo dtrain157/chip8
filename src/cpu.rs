@@ -2,7 +2,7 @@ use super::display::Display;
 use super::keyboard::Keyboard;
 use super::memory::{Memory, MemoryError};
 use super::stack::{Stack, StackError};
-use rand::Rng;
+use rand::prelude::*;
 use std::error;
 use std::fmt;
 
@@ -11,7 +11,7 @@ pub struct CPU {
     //program counter
     pub pc: u16,
     //data registers
-    v: [u8; REGISTER_COUNT],
+    pub v: [u8; REGISTER_COUNT],
     //address register
     i: u16,
     //timers
@@ -54,7 +54,7 @@ impl CPU {
             //RET
             (0x0, 0x0, 0xE, 0xE) => {
                 self.pc = match self.stack.pop() {
-                    Ok(val) => val - 2,
+                    Ok(val) => val,
                     Err(e) => return Err(CPUError::ErrorAccessingStack(e)),
                 };
             }
@@ -112,12 +112,12 @@ impl CPU {
             }
             //SUB Vx Vy
             (0x8, _, _, 0x5) => {
-                if self.v[x] > self.v[y] {
-                    self.v[0xF] = 1
-                } else {
-                    self.v[0xF] = 0
+                let (res, overflow) = self.v[x].overflowing_sub(self.v[y]);
+                match overflow {
+                    true => self.v[0xF] = 0,
+                    false => self.v[0xF] = 1,
                 }
-                self.v[x] = self.v[x] - self.v[y];
+                self.v[x] = res;
             }
             //SHR Vx
             (0x8, _, _, 0x6) => {
@@ -130,12 +130,12 @@ impl CPU {
             }
             //SUBN Vx Vy
             (0x8, _, _, 0x7) => {
-                if self.v[y] > self.v[x] {
-                    self.v[0xF] = 1
-                } else {
-                    self.v[0xF] = 0
+                let (res, overflow) = self.v[y].overflowing_sub(self.v[x]);
+                match overflow {
+                    true => self.v[0xF] = 0,
+                    false => self.v[0xF] = 1,
                 }
-                self.v[x] = self.v[y] - self.v[x];
+                self.v[x] = res;
             }
             //SHL Vx
             (0x8, _, _, 0xE) => {
@@ -158,8 +158,7 @@ impl CPU {
             (0xB, _, _, _) => self.pc = (self.v[0] as u16) + nnn,
             //RND Vx byte
             (0xC, _, _, _) => {
-                let mut rng = rand::thread_rng();
-                let n1: u8 = rng.gen();
+                let n1: u8 = random();
                 self.v[x] = n1 & kk;
             }
             //DRW Vx Vy
@@ -206,8 +205,8 @@ impl CPU {
             (0xF, _, 0x2, 0x9) => self.i = memory.get_location_of_font_character(self.v[x]) as u16,
             //LD B Vx
             (0xF, _, 0x3, 0x3) => {
-                let hundreds = self.v[x] % 100;
-                let tens = (self.v[x] - hundreds * 100) % 10;
+                let hundreds = self.v[x] / 100;
+                let tens = (self.v[x] - hundreds * 100) / 10;
                 let ones = self.v[x] - hundreds * 100 - tens * 10;
                 match memory.write_byte(self.i as usize, hundreds) {
                     Ok(_) => {}
@@ -224,7 +223,7 @@ impl CPU {
             }
             //LD I Vx
             (0xF, _, 0x5, 0x5) => {
-                for j in 0..REGISTER_COUNT - 1 {
+                for j in 0..REGISTER_COUNT {
                     match memory.write_byte((self.i as usize) + j, self.v[j]) {
                         Ok(_) => {}
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -233,7 +232,7 @@ impl CPU {
             }
             //LD Vx I
             (0xF, _, 0x6, 0x5) => {
-                for j in 0..REGISTER_COUNT - 1 {
+                for j in 0..REGISTER_COUNT {
                     self.v[j] = match memory.read_byte((self.i as usize) + j) {
                         Ok(byte) => byte,
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -245,6 +244,14 @@ impl CPU {
 
         if should_update_pc_after_processing {
             self.pc = self.pc + 2;
+        }
+
+        if self.delay_timer > 0 {
+            self.delay_timer = self.delay_timer - 1;
+        }
+
+        if self.sound_timer > 0 {
+            self.sound_timer = self.sound_timer - 1;
         }
 
         Ok(())
@@ -263,9 +270,7 @@ impl fmt::Display for CPUError {
         match *self {
             CPUError::ErrorAccessingStack(ref e) => e.fmt(f),
             CPUError::ErrorAccessingMemory(ref e) => e.fmt(f),
-            CPUError::InvalidOpcodeEncountered(opcode, addr) => {
-                write!(f, "Unknown opcode encountered as addr {:#04X}: {:#04X}", opcode, addr)
-            }
+            CPUError::InvalidOpcodeEncountered(opcode, addr) => write!(f, "Unknown opcode encountered as addr {:#04X}: {:#04X}", opcode, addr),
         }
     }
 }
@@ -304,12 +309,12 @@ mod cpu_tests {
         let opcode = 0x00EE; //return from first function
         cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
-        assert_eq!(cpu.pc, 0x111);
+        assert_eq!(cpu.pc, 0x113);
 
         let opcode = 0x00EE; //return from second function
         cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
 
-        assert_eq!(cpu.pc, 0x200);
+        assert_eq!(cpu.pc, 0x202);
     }
 
     #[test]
@@ -326,7 +331,7 @@ mod cpu_tests {
     }
 
     #[test]
-    fn cpu_ld_vx_byte_se() {
+    fn cpu_ld_vx_byte_se_sne() {
         let mut cpu = CPU::new();
         let mut display = Display::new();
         let mut memory = Memory::new();
@@ -341,5 +346,593 @@ mod cpu_tests {
         let opcode = 0x3822; //skip the next instruction (condition v[8] = 0x22 is true)
         cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
         assert_eq!(cpu.pc, 0x206);
+
+        let opcode = 0x3821; //do not skip the next instruction (condition v[8] = 0x21 is false)
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.pc, 0x208);
+    }
+
+    #[test]
+    fn cpu_se_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6822; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[8], 0x22);
+        assert_eq!(cpu.pc, 0x202);
+
+        let opcode = 0x6922; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[9], 0x22);
+        assert_eq!(cpu.pc, 0x204);
+
+        let opcode = 0x5890; //skip the next instruction (condition v[8] = v[9] is true)
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.pc, 0x208);
+    }
+
+    #[test]
+    fn cpu_add_vx_byte() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6822; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[8], 0x22);
+        assert_eq!(cpu.pc, 0x202);
+
+        let opcode = 0x7822; //add 0x22 to v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[8], 0x44);
+        assert_eq!(cpu.pc, 0x204);
+    }
+
+    #[test]
+    fn cpu_ld_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6822; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[8], 0x22);
+        assert_eq!(cpu.pc, 0x202);
+
+        let opcode = 0x8980; //set v[9] equal to v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[9], 0x22);
+        assert_eq!(cpu.pc, 0x204);
+    }
+
+    #[test]
+    fn cpu_or_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6101; //load 0x01 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x62AA; //load 0xAA into v[2]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8121; //or v[1] and v[2]; store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0xAB);
+    }
+
+    #[test]
+    fn cpu_and_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6102; //load 0x02 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x62AA; //load 0xAA into v[2]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8122; //and v[1] and v[2]; store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x02);
+    }
+
+    #[test]
+    fn cpu_xor_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x61FA; //load 0xFA into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x62AA; //load 0xAA into v[2]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8123; //xor v[1] and v[2]; store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x50);
+    }
+
+    #[test]
+    fn cpu_add_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6101; //load 0x01 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x6201; //load 0x01 into v[2]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x63FF; //load 0xFF into v[3]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8124; //add v[1] and v[2]; store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x02);
+        assert_eq!(cpu.v[0xF], 0);
+
+        let opcode = 0x6101; //load 0x01 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8134; //add v[1] and v[3]; store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x00);
+        assert_eq!(cpu.v[0xF], 1);
+    }
+
+    #[test]
+    fn cpu_sub_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6102; //load 0x02 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x6201; //load 0x01 into v[2]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8125; //subtract v[2] from v[1], store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x01);
+        assert_eq!(cpu.v[0xF], 1);
+    }
+
+    #[test]
+    fn cpu_shr_vx() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6110; //load 0x10 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8106; //shift v[1] right
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x08);
+        assert_eq!(cpu.v[0xF], 0);
+
+        let opcode = 0x6181; //load 0x81 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8106; //shift v[1] right
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x40);
+        assert_eq!(cpu.v[0xF], 1);
+    }
+
+    #[test]
+    fn cpu_subn_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6101; //load 0x01 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x6202; //load 0x02 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x8127; //subtract v[1] from v[2], store the result in v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x01);
+        assert_eq!(cpu.v[0xF], 1);
+    }
+
+    #[test]
+    fn cpu_shl_vx() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6110; //load 0x10 into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x810E; //shift v[1] right
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x20);
+        assert_eq!(cpu.v[0xF], 0);
+
+        let opcode = 0x61AA; //load 0xAA into v[1]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0x810E; //shift v[1] right
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+
+        assert_eq!(cpu.v[1], 0x54);
+        assert_eq!(cpu.v[0xF], 1);
+    }
+
+    #[test]
+    fn cpu_sne_vx_vy() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6822; //load 0x22 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[8], 0x22);
+        assert_eq!(cpu.pc, 0x202);
+
+        let opcode = 0x6923; //load 0x23 into v[8]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[9], 0x23);
+        assert_eq!(cpu.pc, 0x204);
+
+        let opcode = 0x9890; //skip the next instruction (condition v[8] != v[9] is true)
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.pc, 0x208);
+    }
+
+    #[test]
+    fn cpu_ld_i_addr() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0xA1AF; //load the value 0x1AF into I
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x01AF);
+    }
+
+    #[test]
+    fn cpu_jp_vo_addr() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6022; //load 0x22 into v[0]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x22);
+
+        let opcode = 0xB1AF; //jump to address v[0] + 0x1AF (0x22 + 0x1AF = 0x1D1)
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.pc, 0x1D3);
+    }
+
+    // This test might fail, if the random number generated happens to be 0x22.
+    // There is only a 1/256 chance of this happening, though, so most of the time
+    // the test should succeed. If it fails in successive test runs, there is probably
+    // an issue.
+    #[test]
+    fn cpu_rnd_vx_byte() {
+        let mut cpu = CPU::new();
+        let mut display = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6022; //load 0x22 into v[0]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x22);
+
+        let opcode = 0xC0FF; //save a random number into v[0]
+        cpu.process_opcode(opcode, &mut display, &mut memory, &keyboard).unwrap();
+        assert_ne!(cpu.v[0], 0x22);
+    }
+
+    #[test]
+    fn cpu_drw_vx_vy_nibble() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6000; //load 0x00 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x00);
+
+        let opcode = 0x6100; //load 0x00 into v[1]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[1], 0x00);
+
+        let opcode = 0xA000; //load 0x000 into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x000);
+
+        let opcode = 0xD015; //Draw 5 bytes onto the display at (0,0). This is expected to draw the "0" character onto the display.
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        let display_byte1 = &disp.memory[0..8];
+        let display_byte2 = &disp.memory[crate::display::COLUMNS..crate::display::COLUMNS + 8];
+        let display_byte3 = &disp.memory[crate::display::COLUMNS * 2..(crate::display::COLUMNS * 2) + 8];
+        let display_byte4 = &disp.memory[crate::display::COLUMNS * 3..(crate::display::COLUMNS * 3) + 8];
+        let display_byte5 = &disp.memory[crate::display::COLUMNS * 4..(crate::display::COLUMNS * 4) + 8];
+
+        let expected_byte1 = vec![1, 1, 1, 1, 0, 0, 0, 0];
+        let expected_byte2 = vec![1, 0, 0, 1, 0, 0, 0, 0];
+        let expected_byte3 = vec![1, 0, 0, 1, 0, 0, 0, 0];
+        let expected_byte4 = vec![1, 0, 0, 1, 0, 0, 0, 0];
+        let expected_byte5 = vec![1, 1, 1, 1, 0, 0, 0, 0];
+
+        assert!(expected_byte1.len() == display_byte1.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte2.len() == display_byte2.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte3.len() == display_byte3.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte4.len() == display_byte4.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte5.len() == display_byte5.len() && expected_byte1 == display_byte1);
+    }
+
+    #[test]
+    fn cpu_ld_dt_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6022; //load 0x22 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x22);
+
+        let opcode = 0xF015; //load v[0] into DT
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.delay_timer, 0x21);
+
+        let opcode = 0xF107; //load DT into v[1]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[1], 0x21);
+    }
+
+    #[test]
+    fn cpu_ld_st_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6022; //load 0x22 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x22);
+
+        let opcode = 0xF018; //load v[0] into ST
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.sound_timer, 0x21);
+    }
+
+    #[test]
+    fn cpu_add_i_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6022; //load 0x22 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x22);
+
+        let opcode = 0x6133; //load 0x33 into v[1]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[1], 0x33);
+
+        let opcode = 0xF01E; //add v[0] to I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x22);
+
+        let opcode = 0xF11E; //add v[1] to I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x55);
+    }
+
+    #[test]
+    fn cpu_ld_f_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6002; //load 0x2 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0x02);
+
+        let opcode = 0xF029; //load address of font character in v[0] into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x0A);
+    }
+
+    #[test]
+    fn cpu_ld_b_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x60B7; //load 0xB7 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0], 0xB7);
+
+        let opcode = 0xA1AF; //load the value 0x1AF into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.i, 0x01AF);
+
+        let opcode = 0xF033; //store BCD representation of Vx in memory locations I, I+1, and I+2.
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(memory.read_byte(cpu.i as usize).unwrap(), 1);
+        assert_eq!(memory.read_byte((cpu.i + 1) as usize).unwrap(), 8);
+        assert_eq!(memory.read_byte((cpu.i + 2) as usize).unwrap(), 3);
+    }
+
+    #[test]
+    fn cpu_ld_i_vx() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0x6000; //load 0x00 into v[0]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6101; //load 0x01 into v[1]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6202; //load 0x02 into v[2]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6303; //load 0x03 into v[3]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6404; //load 0x04 into v[4]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6505; //load 0x05 into v[5]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6606; //load 0x06 into v[6]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6707; //load 0x07 into v[7]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6808; //load 0x08 into v[8]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6909; //load 0x09 into v[9]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6A0A; //load 0x0A into v[A]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6B0B; //load 0x0B into v[B]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6C0C; //load 0x0C into v[C]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6D0D; //load 0x0D into v[D]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6E0E; //load 0x0E into v[E]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6F0F; //load 0x0F into v[F]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0xA1AF; //load the value 0x1AF into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0xFF55; //store V[0]..v[F] into memory starting at addr in I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(memory.read_byte(cpu.i as usize).unwrap(), 0x0);
+        assert_eq!(memory.read_byte((cpu.i + 1) as usize).unwrap(), 0x1);
+        assert_eq!(memory.read_byte((cpu.i + 2) as usize).unwrap(), 0x2);
+        assert_eq!(memory.read_byte((cpu.i + 3) as usize).unwrap(), 0x3);
+        assert_eq!(memory.read_byte((cpu.i + 4) as usize).unwrap(), 0x4);
+        assert_eq!(memory.read_byte((cpu.i + 5) as usize).unwrap(), 0x5);
+        assert_eq!(memory.read_byte((cpu.i + 6) as usize).unwrap(), 0x6);
+        assert_eq!(memory.read_byte((cpu.i + 7) as usize).unwrap(), 0x7);
+        assert_eq!(memory.read_byte((cpu.i + 8) as usize).unwrap(), 0x8);
+        assert_eq!(memory.read_byte((cpu.i + 9) as usize).unwrap(), 0x9);
+        assert_eq!(memory.read_byte((cpu.i + 10) as usize).unwrap(), 0xA);
+        assert_eq!(memory.read_byte((cpu.i + 11) as usize).unwrap(), 0xB);
+        assert_eq!(memory.read_byte((cpu.i + 12) as usize).unwrap(), 0xC);
+        assert_eq!(memory.read_byte((cpu.i + 13) as usize).unwrap(), 0xD);
+        assert_eq!(memory.read_byte((cpu.i + 14) as usize).unwrap(), 0xE);
+        assert_eq!(memory.read_byte((cpu.i + 15) as usize).unwrap(), 0xF);
+    }
+
+    #[test]
+    fn cpu_ld_vx_i() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        memory.write_byte(0x400, 0x00).unwrap();
+        memory.write_byte(0x401, 0x01).unwrap();
+        memory.write_byte(0x402, 0x02).unwrap();
+        memory.write_byte(0x403, 0x03).unwrap();
+        memory.write_byte(0x404, 0x04).unwrap();
+        memory.write_byte(0x405, 0x05).unwrap();
+        memory.write_byte(0x406, 0x06).unwrap();
+        memory.write_byte(0x407, 0x07).unwrap();
+        memory.write_byte(0x408, 0x08).unwrap();
+        memory.write_byte(0x409, 0x09).unwrap();
+        memory.write_byte(0x40A, 0x0A).unwrap();
+        memory.write_byte(0x40B, 0x0B).unwrap();
+        memory.write_byte(0x40C, 0x0C).unwrap();
+        memory.write_byte(0x40D, 0x0D).unwrap();
+        memory.write_byte(0x40E, 0x0E).unwrap();
+        memory.write_byte(0x40F, 0x0F).unwrap();
+
+        let opcode = 0xA400; //load the value 0x400 into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0xFF65; //read V[0]..v[F] in from memory starting at addr in I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0x0], 0x00);
+        assert_eq!(cpu.v[0x1], 0x01);
+        assert_eq!(cpu.v[0x2], 0x02);
+        assert_eq!(cpu.v[0x3], 0x03);
+        assert_eq!(cpu.v[0x4], 0x04);
+        assert_eq!(cpu.v[0x5], 0x05);
+        assert_eq!(cpu.v[0x6], 0x06);
+        assert_eq!(cpu.v[0x7], 0x07);
+        assert_eq!(cpu.v[0x8], 0x08);
+        assert_eq!(cpu.v[0x9], 0x09);
+        assert_eq!(cpu.v[0xA], 0x0A);
+        assert_eq!(cpu.v[0xB], 0x0B);
+        assert_eq!(cpu.v[0xC], 0x0C);
+        assert_eq!(cpu.v[0xD], 0x0D);
+        assert_eq!(cpu.v[0xE], 0x0E);
+        assert_eq!(cpu.v[0xF], 0x0F);
     }
 }
+
+/*
+//SKP Vx
+(0xE, _, 0x9, 0xE) => match keyboard.get_key_pressed() {
+    Some(key) => {
+        if self.v[x] == key {
+            self.pc = self.pc + 2;
+        }
+    }
+    None => {}
+},
+//SKNP Vx
+(0xE, _, 0xA, 0x1) => match keyboard.get_key_pressed() {
+    Some(key) => {
+        if self.v[x] != key {
+            self.pc = self.pc + 2;
+        }
+    }
+    None => {}
+},
+//LD Vx K
+(0xF, _, 0x0, 0xA) => match keyboard.get_key_pressed() {
+    Some(key) => self.v[x] = key,
+    None => should_update_pc_after_processing = false,
+},
+*/
