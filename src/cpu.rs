@@ -9,9 +9,9 @@ use std::fmt;
 const REGISTER_COUNT: usize = 16;
 pub struct CPU {
     //program counter
-    pub pc: u16,
+    pc: u16,
     //data registers
-    pub v: [u8; REGISTER_COUNT],
+    v: [u8; REGISTER_COUNT],
     //address register
     i: u16,
     //timers
@@ -232,7 +232,7 @@ impl CPU {
             }
             //LD Vx I
             (0xF, _, 0x6, 0x5) => {
-                for j in 0..REGISTER_COUNT {
+                for j in 0..x + 1 {
                     self.v[j] = match memory.read_byte((self.i as usize) + j) {
                         Ok(byte) => byte,
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -246,6 +246,30 @@ impl CPU {
             self.pc = self.pc + 2;
         }
 
+        Ok(())
+    }
+
+    pub fn get_pc(&self) -> u16 {
+        self.pc
+    }
+
+    pub fn get_v_registers(&self) -> &[u8] {
+        &self.v[..]
+    }
+
+    pub fn get_i(&self) -> u16 {
+        self.i
+    }
+
+    pub fn get_delay_timer(&self) -> u8 {
+        self.delay_timer
+    }
+
+    pub fn get_sound_timer(&self) -> u8 {
+        self.sound_timer
+    }
+
+    pub fn decrement_timers(&mut self) {
         if self.delay_timer > 0 {
             self.delay_timer = self.delay_timer - 1;
         }
@@ -253,8 +277,6 @@ impl CPU {
         if self.sound_timer > 0 {
             self.sound_timer = self.sound_timer - 1;
         }
-
-        Ok(())
     }
 }
 
@@ -908,6 +930,53 @@ mod cpu_tests {
         assert_eq!(cpu.v[0xD], 0x0D);
         assert_eq!(cpu.v[0xE], 0x0E);
         assert_eq!(cpu.v[0xF], 0x0F);
+    }
+
+    #[test]
+    fn cpu_ld_vx_i_2() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        memory.write_byte(0x400, 0x00).unwrap();
+        memory.write_byte(0x401, 0x01).unwrap();
+        memory.write_byte(0x402, 0x02).unwrap();
+        memory.write_byte(0x403, 0x03).unwrap();
+        memory.write_byte(0x404, 0x04).unwrap();
+        memory.write_byte(0x405, 0x05).unwrap();
+        memory.write_byte(0x406, 0x06).unwrap();
+        memory.write_byte(0x407, 0x07).unwrap();
+        memory.write_byte(0x408, 0x08).unwrap();
+        memory.write_byte(0x409, 0x09).unwrap();
+        memory.write_byte(0x40A, 0x0A).unwrap();
+        memory.write_byte(0x40B, 0x0B).unwrap();
+        memory.write_byte(0x40C, 0x0C).unwrap();
+        memory.write_byte(0x40D, 0x0D).unwrap();
+        memory.write_byte(0x40E, 0x0E).unwrap();
+        memory.write_byte(0x40F, 0x0F).unwrap();
+
+        let opcode = 0xA400; //load the value 0x400 into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        let opcode = 0xF265; //read V[0]..v[2] in from memory starting at addr in I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        assert_eq!(cpu.v[0x0], 0x00);
+        assert_eq!(cpu.v[0x1], 0x01);
+        assert_eq!(cpu.v[0x2], 0x02);
+        assert_eq!(cpu.v[0x3], 0x00);
+        assert_eq!(cpu.v[0x4], 0x00);
+        assert_eq!(cpu.v[0x5], 0x00);
+        assert_eq!(cpu.v[0x6], 0x00);
+        assert_eq!(cpu.v[0x7], 0x00);
+        assert_eq!(cpu.v[0x8], 0x00);
+        assert_eq!(cpu.v[0x9], 0x00);
+        assert_eq!(cpu.v[0xA], 0x00);
+        assert_eq!(cpu.v[0xB], 0x00);
+        assert_eq!(cpu.v[0xC], 0x00);
+        assert_eq!(cpu.v[0xD], 0x00);
+        assert_eq!(cpu.v[0xE], 0x00);
+        assert_eq!(cpu.v[0xF], 0x00);
     }
 }
 

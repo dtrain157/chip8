@@ -37,7 +37,7 @@ pub const PONG: [u8; 256] = [
 const FONT_CHARACTER_SIZE: usize = 5; //size in bytes
 
 pub struct Memory {
-    memory: [u8; MEMORY_SIZE],
+    pub memory: [u8; MEMORY_SIZE],
 }
 
 impl Memory {

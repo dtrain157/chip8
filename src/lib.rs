@@ -34,7 +34,8 @@ impl Chip8 {
     // TODO: Fix error handling
     // Unwrapping for now, 'til I can work out how to pass custom errors through the wasm boundry
     pub fn execute_cycle(&mut self) {
-        let opcode = self.memory.read_word(self.cpu.pc as usize).unwrap();
+        let pc = self.cpu.get_pc() as usize;
+        let opcode = self.memory.read_word(pc).unwrap();
         self.cpu.process_opcode(opcode, &mut self.display, &mut self.memory, &self.keyboard).unwrap();
     }
 
@@ -50,71 +51,35 @@ impl Chip8 {
         self.display.memory.as_ptr()
     }
 
+    pub fn get_memory_size(&self) -> usize {
+        memory::MEMORY_SIZE
+    }
+
+    pub fn get_memory(&self) -> *const u8 {
+        self.memory.memory.as_ptr()
+    }
+
     pub fn get_pc(&self) -> u16 {
-        self.cpu.pc
+        self.cpu.get_pc()
     }
 
-    pub fn get_v0(&self) -> u8 {
-        self.cpu.v[0]
+    pub fn get_i(&self) -> u16 {
+        self.cpu.get_i()
     }
 
-    pub fn get_v1(&self) -> u8 {
-        self.cpu.v[1]
+    pub fn get_delay_timer(&self) -> u8 {
+        self.cpu.get_delay_timer()
     }
 
-    pub fn get_v2(&self) -> u8 {
-        self.cpu.v[2]
+    pub fn get_sound_timer(&self) -> u8 {
+        self.cpu.get_sound_timer()
     }
 
-    pub fn get_v3(&self) -> u8 {
-        self.cpu.v[3]
+    pub fn decrement_timers(&mut self) {
+        self.cpu.decrement_timers();
     }
 
-    pub fn get_v4(&self) -> u8 {
-        self.cpu.v[4]
-    }
-
-    pub fn get_v5(&self) -> u8 {
-        self.cpu.v[5]
-    }
-
-    pub fn get_v6(&self) -> u8 {
-        self.cpu.v[6]
-    }
-
-    pub fn get_v7(&self) -> u8 {
-        self.cpu.v[7]
-    }
-
-    pub fn get_v8(&self) -> u8 {
-        self.cpu.v[8]
-    }
-
-    pub fn get_v9(&self) -> u8 {
-        self.cpu.v[9]
-    }
-
-    pub fn get_va(&self) -> u8 {
-        self.cpu.v[0xA]
-    }
-
-    pub fn get_vb(&self) -> u8 {
-        self.cpu.v[0xB]
-    }
-
-    pub fn get_vc(&self) -> u8 {
-        self.cpu.v[0xC]
-    }
-
-    pub fn get_vd(&self) -> u8 {
-        self.cpu.v[0xD]
-    }
-
-    pub fn get_ve(&self) -> u8 {
-        self.cpu.v[0xE]
-    }
-
-    pub fn get_vf(&self) -> u8 {
-        self.cpu.v[0xF]
+    pub fn get_v_registers(&self) -> *const u8 {
+        self.cpu.get_v_registers().as_ptr()
     }
 }
