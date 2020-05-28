@@ -5,42 +5,77 @@
     <title>Hello Chip8!</title>
     <style>
       body {
-        margin-left: auto;
-        margin-right: auto;
-        background-color: blue;
+        background-color: darkslategrey;
         color: blanchedalmond;
       }
 
-      canvas {
-        image-rendering: -moz-crisp-edges;
-        image-rendering: -webkit-crisp-edges;
-        image-rendering: pixelated;
+      h1 {
+        font-family: "Righteous", cursive;
+      }
+
+      label {
+        font-family: "Righteous", cursive;
+      }
+
+      div {
+        font-family: "Roboto", sans-serif;
       }
 
       .wrapper {
-        display: grid;
-        grid-template-columns: 20% 30% 50%;
-        gap: 1em;
-        grid-auto-rows: minmax(100px, auto);
+        width: 512px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+
+      .screen {
+        image-rendering: -moz-crisp-edges;
+        image-rendering: -webkit-crisp-edges;
+        image-rendering: pixelated;
+        height: 260px;
+        margin-top: 3px;
+        text-align: center;
+      }
+
+      #chip8-display {
+        position: relative;
+        display: block;
+        transform: scale(8);
+        transform-origin: top left;
       }
     </style>
+    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Roboto&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div class="wrapper">
+      <h1>Hello, chip8!</h1>
+
+      <div>Chip8 emulator written in Rust, and running in the browser as WebAssembly.</div>
+
       <div>
-        <input id="step" type="checkbox" value="Step Through" /><label for="step">Step through the programme</label><br />
-        <input id="go_button" type="button" value="Run" onclick="setRunPressed()" />
+        <span class="label">SELECT ROM:</span>
+        <select class="drowpdown" id="roms"> </select>
       </div>
+
+      <div class="control">
+        <input class="checkbox" id="step" type="checkbox" value="Step Through" /><label for="step">Step through the programme</label><br />
+        <input class="button" id="go_button" type="button" value="Run" />
+      </div>
+
       <div class="screen">
-        <canvas id="chip8-display-canvas" width="64" height="32" style="transform: scale(8); transform-origin: top left;"></canvas>
+        <canvas id="chip8-display" width="64" height="32"></canvas>
       </div>
-      <div class="registers">
-        <div id="opcode"></div>
-        <div id="pc"></div>
-        <div id="v_registers"></div>
-        <div id="i"></div>
-        <div id="delay_timer"></div>
-        <div id="sound_timer"></div>
+
+      <div class="memory">
+        <div>
+          <input class="button" id="hide-button-program-listing" type="button" value="+" onclick="hideOutput('program-listing')" />
+          <span class="label">PROGRAMME LISTING</span>
+          <div id="program-listing" style="display: none;"></div>
+        </div>
+        <div>
+          <input class="button" id="hide-button-registers" type="button" value="+" onclick="hideOutput('registers')" />
+          <span class="label">REGISTER VALUES</span>
+          <div id="registers" style="display: none;"></div>
+        </div>
       </div>
     </div>
 

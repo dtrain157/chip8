@@ -10,7 +10,8 @@
   "author": "Derrick van Zyl <derrick.vanzyl@gmail.com>",
   "license": "MIT",
   "dependencies": {
-    "chip8": "file:../pkg"
+    "chip8": "file:../pkg",
+    "jquery": "3.5.1"
   },
   "devDependencies": {
     "webpack": "^4.29.3",

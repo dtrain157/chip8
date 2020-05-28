@@ -1,4 +1,5 @@
 import * as wasm from "chip8";
+import $ from "jquery";
 import { memory } from "chip8/chip8_bg";
 
 /**** HELPER FUCTIONS ****/
@@ -17,7 +18,7 @@ const DISPLAY_HEIHT = chip8.get_display_height();
 const displayPtr = chip8.get_display_memory();
 const displayMemory = new Uint8Array(memory.buffer, displayPtr, DISPLAY_WIDTH * DISPLAY_HEIHT);
 
-const canvas = document.getElementById("chip8-display-canvas");
+const canvas = document.getElementById("chip8-display");
 const ctx = canvas.getContext("2d");
 
 const updateDisplay = () => {
@@ -37,7 +38,7 @@ const MEMORY_SIZE = chip8.get_memory_size();
 const memoryPtr = chip8.get_memory();
 const mainMemory = new Uint8Array(memory.buffer, memoryPtr, MEMORY_SIZE);
 
-const get_opcode_from_memory = (pc) => {
+const getOpcodeFromMemory = (pc) => {
   return (mainMemory[pc] << 8) | mainMemory[pc + 1];
 };
 
@@ -48,7 +49,7 @@ const vRegisters = new Uint8Array(memory.buffer, vRegisterPtr, 16);
 /**** SET UP OPCODE DISASSEMBLER ****/
 const inRange = (value, lower, upper) => value >= lower && value <= upper;
 
-const dissassemble_opcode = (opcode) => {
+const dissassembleOpcode = (opcode) => {
   const x = (opcode & 0x0f00) >> 8;
   const y = (opcode & 0x00f0) >> 4;
   const nnn = opcode & 0x0fff;
@@ -98,26 +99,47 @@ const dissassemble_opcode = (opcode) => {
 };
 
 /**** OUTPUT FUNCTIONS ****/
-const write_current_opcode = () => {
-  const pc = chip8.get_pc();
-  const opcode = get_opcode_from_memory(pc);
-  document.getElementById("opcode").innerHTML = `Current Opcode: ${hex(opcode, 4)} [ ${dissassemble_opcode(opcode)} ]`;
-};
-
-const write_registers = () => {
-  document.getElementById("v_registers").innerHTML = "";
-  for (var i = 0; i < 16; i++) {
-    document.getElementById("v_registers").innerHTML += `V${hex(i, 1)}: ${hex(vRegisters[i])}<br/>`;
+const writeProgramMemory = (length) => {
+  var memory = "";
+  const startpos = 0x200;
+  for (var i = 0; i <= length; i = i + 2) {
+    var opcode = getOpcodeFromMemory(startpos + i);
+    memory += `<div class="program-listing-line" id="mem_${hex(startpos + i, 4)}">[${hex(startpos + i, 4)}]: ${dissassembleOpcode(opcode)} (${hex(
+      opcode,
+      4
+    )})</div>`;
   }
 
-  document.getElementById("pc").innerHTML = `PC: ${hex(chip8.get_pc(), 4)}`;
-  document.getElementById("i").innerHTML = ` I: ${hex(chip8.get_i(), 4)}`;
-  document.getElementById("delay_timer").innerHTML = `DT: ${hex(chip8.get_delay_timer())}`;
-  document.getElementById("sound_timer").innerHTML = `ST: ${hex(chip8.get_sound_timer())}`;
+  $(".memory #program-listing").html(memory);
+};
+
+const highlightCurrentOpcode = () => {
+  var memoryElements = document.getElementsByClassName("program-listing-line");
+  for (var i = 0; i < memoryElements.length; i++) {
+    memoryElements[i].style.background = "blue";
+  }
+
+  document.getElementById(`mem_${hex(chip8.get_pc(), 4)}`).style.background = "yellow";
+};
+
+const writeRegisters = () => {
+  var registers = "";
+
+  for (var i = 0; i < 16; i++) {
+    registers += `V${hex(i, 1)}: ${hex(vRegisters[i])}<br/>`;
+  }
+
+  registers += `PC: ${hex(chip8.get_pc(), 4)}<br/>`;
+  registers += ` I: ${hex(chip8.get_i(), 4)}<br/>`;
+  registers += `DT: ${hex(chip8.get_delay_timer())}<br/>`;
+  registers += `ST: ${hex(chip8.get_sound_timer())}<br/>`;
+
+  $(".memory #registers").html(registers);
 };
 
 /**** BUTTONS ****/
 var is_step_through = false;
+var is_running = false;
 document.getElementById("step").onclick = function () {
   is_step_through = document.getElementById("step").checked;
   if (is_step_through) {
@@ -128,7 +150,22 @@ document.getElementById("step").onclick = function () {
 };
 
 document.getElementById("go_button").onclick = function () {
-  renderLoop();
+  if (is_step_through) {
+    renderLoop();
+  } else {
+    if (!is_running) {
+      is_running = true;
+      renderLoop();
+      document.getElementById("go_button").value = "Stop";
+    } else {
+      is_running = false;
+      document.getElementById("go_button").value = "Run";
+    }
+  }
+};
+
+window.hideOutput = function (id) {
+  $(`#${id}`).toggle();
 };
 
 /**** EMULATION LOOP ****/
@@ -147,15 +184,16 @@ function renderLoop() {
 
   chip8.decrement_timers();
 
-  write_current_opcode();
-  write_registers();
+  highlightCurrentOpcode();
+  writeRegisters();
   updateDisplay();
 
-  if (!is_step_through) {
+  if (is_running && !is_step_through) {
     requestAnimationFrame(renderLoop);
   }
 }
 
-write_current_opcode();
-write_registers();
+writeProgramMemory(256);
+highlightCurrentOpcode();
+writeRegisters();
 updateDisplay();
