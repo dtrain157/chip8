@@ -2,109 +2,111 @@ import * as wasm from "chip8";
 import $ from "jquery";
 import { memory } from "chip8/chip8_bg";
 
+/**** COLOUR CONSTANTS ****/
+const backgroundColour = getComputedStyle(document.body).backgroundColor;
+const highlightColour = getComputedStyle(document.body).color;
+
 /**** HELPER FUCTIONS ****/
 const hex = (value, length = 2) => {
   const padded = "0000" + value.toString(16).toUpperCase();
   return padded.substr(padded.length - length);
 };
 
-/**** TURN ON THE EMULATOR ****/
-const chip8 = wasm.Chip8.power_up();
-
-/**** SET UP DISPLAY ****/
-const DISPLAY_WIDTH = chip8.get_display_width();
-const DISPLAY_HEIHT = chip8.get_display_height();
-
-const displayPtr = chip8.get_display_memory();
-const displayMemory = new Uint8Array(memory.buffer, displayPtr, DISPLAY_WIDTH * DISPLAY_HEIHT);
-
-const canvas = document.getElementById("chip8-display");
-const ctx = canvas.getContext("2d");
-
-const updateDisplay = () => {
-  const imageData = ctx.createImageData(DISPLAY_WIDTH, DISPLAY_HEIHT);
-  for (let i = 0; i < displayMemory.length; i++) {
-    imageData.data[i * 4] = displayMemory[i] === 1 ? 0xff : 0;
-    imageData.data[i * 4 + 1] = displayMemory[i] === 1 ? 0xff : 0;
-    imageData.data[i * 4 + 2] = displayMemory[i] === 1 ? 0xff : 0;
-    imageData.data[i * 4 + 3] = 0xff;
-  }
-  ctx.putImageData(imageData, 0, 0);
-};
-
-/**** SET UP MAIN MEMORY ****/
-const MEMORY_SIZE = chip8.get_memory_size();
-
-const memoryPtr = chip8.get_memory();
-const mainMemory = new Uint8Array(memory.buffer, memoryPtr, MEMORY_SIZE);
-
-const getOpcodeFromMemory = (pc) => {
-  return (mainMemory[pc] << 8) | mainMemory[pc + 1];
-};
-
-/**** SET UP V-REGISTERS ****/
-const vRegisterPtr = chip8.get_v_registers();
-const vRegisters = new Uint8Array(memory.buffer, vRegisterPtr, 16);
-
-/**** SET UP OPCODE DISASSEMBLER ****/
 const inRange = (value, lower, upper) => value >= lower && value <= upper;
 
-const dissassembleOpcode = (opcode) => {
-  const x = (opcode & 0x0f00) >> 8;
-  const y = (opcode & 0x00f0) >> 4;
-  const nnn = opcode & 0x0fff;
-  const kk = opcode & 0x00ff;
-  const n = opcode & 0x000f;
+/**** EMULATOR ****/
+class Emulator {
+  constructor() {
+    /**** POWER UP CHIP8 EMULATOR ****/
+    this.chip8 = wasm.Chip8.power_up();
 
-  if (opcode === 0x00e0) return "CLS";
-  if (opcode === 0x00ee) return "RET";
-  if (inRange(opcode, 0x1000, 0x1fff)) return `JP 0x${hex(nnn, 3)}`;
-  if (inRange(opcode, 0x2000, 0x2fff)) return `CALL 0x${hex(nnn, 3)}`;
-  if (inRange(opcode, 0x3000, 0x3fff)) return `SE V${n} ${hex(kk)}`;
-  if (inRange(opcode, 0x4000, 0x4fff)) return `SNE V${n} ${hex(kk)}`;
-  if (inRange(opcode, 0x5000, 0x5fff)) return `SE V${x} V${y}`;
-  if (inRange(opcode, 0x6000, 0x6fff)) return `LD V${x} ${hex(kk)}`;
-  if (inRange(opcode, 0x7000, 0x7fff)) return `ADD V${x} ${hex(kk)}`;
-  if (inRange(opcode, 0x8000, 0x8fff)) {
-    if (n === 0x0) return `LD V${x} V${y}`;
-    if (n === 0x1) return `OR V${x} V${y}`;
-    if (n === 0x2) return `AND V${x} V${y}`;
-    if (n === 0x3) return `XOR V${x} V${y}`;
-    if (n === 0x4) return `ADD V${x} V${y}`;
-    if (n === 0x5) return `SUB V${x} V${y}`;
-    if (n === 0x6) return `SHR V${x}`;
-    if (n === 0x7) return `SUBN V${x} V${y}`;
-    if (n === 0xe) return `SHL V${x}`;
+    /**** SET UP DISPLAY INTERFACE ****/
+    this.displayWidth = this.chip8.get_display_width();
+    this.displayHeight = this.chip8.get_display_height();
+    this.displayMemory = new Uint8Array(memory.buffer, this.chip8.get_display_memory(), this.displayWidth * this.displayHeight);
+    this.canvas = document.getElementById("chip8-display");
+    this.ctx = this.canvas.getContext("2d");
+
+    /**** SET UP MAIN MEMORY INTERFACE ****/
+    this.memorySize = this.chip8.get_memory_size();
+    this.mainMemory = new Uint8Array(memory.buffer, this.chip8.get_memory(), this.memorySize);
+
+    /**** SET UP REGISTER INTERFACE ****/
+    this.vRegisters = new Uint8Array(memory.buffer, this.chip8.get_v_registers(), 16);
   }
-  if (inRange(opcode, 0x9000, 0x9fff)) return `SNE V${x} V${y}`;
-  if (inRange(opcode, 0xa000, 0xafff)) return `LDI ${hex(nnn, 3)}`;
-  if (inRange(opcode, 0xb000, 0xbfff)) return `JP V0 + ${hex(nnn, 3)}`;
-  if (inRange(opcode, 0xc000, 0xcfff)) return `RND ${hex(kk)}`;
-  if (inRange(opcode, 0xd000, 0xdfff)) return `DRW V${x} V${y} ${n}`;
-  if (inRange(opcode, 0xe000, 0xefff)) {
-    if (kk === 0x9e) return `SKP V${x}`;
-    if (kk === 0xa1) return `SKNP V${x}`;
+
+  updateDisplay() {
+    const imageData = this.ctx.createImageData(this.displayWidth, this.displayHeight);
+    for (let i = 0; i < this.displayMemory.length; i++) {
+      imageData.data[i * 4] = this.displayMemory[i] === 1 ? 0xff : 0;
+      imageData.data[i * 4 + 1] = this.displayMemory[i] === 1 ? 0xff : 0;
+      imageData.data[i * 4 + 2] = this.displayMemory[i] === 1 ? 0xff : 0;
+      imageData.data[i * 4 + 3] = 0xff;
+    }
+    this.ctx.putImageData(imageData, 0, 0);
   }
-  if (inRange(opcode, 0xf000, 0xffff)) {
-    if (kk === 0x07) return `LD V${x} DT`;
-    if (kk === 0x0a) return `LD V${x} K`;
-    if (kk === 0x15) return `LD DT, V${x}`;
-    if (kk === 0x1e) return `ADD I, V${x}`;
-    if (kk === 0x29) return `LD F, V${x}`;
-    if (kk === 0x33) return `LD B, V${x}`;
-    if (kk === 0x55) return `LD [I], ${x}`;
-    if (kk === 0x65) return `LD ${x}, [I]`;
+
+  getOpcodeFromMemory(pc) {
+    return (this.mainMemory[pc] << 8) | this.mainMemory[pc + 1];
   }
-  return "-";
-};
+
+  dissassembleOpcode(opcode) {
+    const x = (opcode & 0x0f00) >> 8;
+    const y = (opcode & 0x00f0) >> 4;
+    const nnn = opcode & 0x0fff;
+    const kk = opcode & 0x00ff;
+    const n = opcode & 0x000f;
+
+    if (opcode === 0x00e0) return "CLS";
+    if (opcode === 0x00ee) return "RET";
+    if (inRange(opcode, 0x1000, 0x1fff)) return `JP 0x${hex(nnn, 3)}`;
+    if (inRange(opcode, 0x2000, 0x2fff)) return `CALL 0x${hex(nnn, 3)}`;
+    if (inRange(opcode, 0x3000, 0x3fff)) return `SE V${n} ${hex(kk)}`;
+    if (inRange(opcode, 0x4000, 0x4fff)) return `SNE V${n} ${hex(kk)}`;
+    if (inRange(opcode, 0x5000, 0x5fff)) return `SE V${x} V${y}`;
+    if (inRange(opcode, 0x6000, 0x6fff)) return `LD V${x} ${hex(kk)}`;
+    if (inRange(opcode, 0x7000, 0x7fff)) return `ADD V${x} ${hex(kk)}`;
+    if (inRange(opcode, 0x8000, 0x8fff)) {
+      if (n === 0x0) return `LD V${x} V${y}`;
+      if (n === 0x1) return `OR V${x} V${y}`;
+      if (n === 0x2) return `AND V${x} V${y}`;
+      if (n === 0x3) return `XOR V${x} V${y}`;
+      if (n === 0x4) return `ADD V${x} V${y}`;
+      if (n === 0x5) return `SUB V${x} V${y}`;
+      if (n === 0x6) return `SHR V${x}`;
+      if (n === 0x7) return `SUBN V${x} V${y}`;
+      if (n === 0xe) return `SHL V${x}`;
+    }
+    if (inRange(opcode, 0x9000, 0x9fff)) return `SNE V${x} V${y}`;
+    if (inRange(opcode, 0xa000, 0xafff)) return `LDI ${hex(nnn, 3)}`;
+    if (inRange(opcode, 0xb000, 0xbfff)) return `JP V0 + ${hex(nnn, 3)}`;
+    if (inRange(opcode, 0xc000, 0xcfff)) return `RND ${hex(kk)}`;
+    if (inRange(opcode, 0xd000, 0xdfff)) return `DRW V${x} V${y} ${n}`;
+    if (inRange(opcode, 0xe000, 0xefff)) {
+      if (kk === 0x9e) return `SKP V${x}`;
+      if (kk === 0xa1) return `SKNP V${x}`;
+    }
+    if (inRange(opcode, 0xf000, 0xffff)) {
+      if (kk === 0x07) return `LD V${x} DT`;
+      if (kk === 0x0a) return `LD V${x} K`;
+      if (kk === 0x15) return `LD DT, V${x}`;
+      if (kk === 0x1e) return `ADD I, V${x}`;
+      if (kk === 0x29) return `LD F, V${x}`;
+      if (kk === 0x33) return `LD B, V${x}`;
+      if (kk === 0x55) return `LD [I], ${x}`;
+      if (kk === 0x65) return `LD ${x}, [I]`;
+    }
+    return "-";
+  }
+}
 
 /**** OUTPUT FUNCTIONS ****/
-const writeProgramMemory = (length) => {
+const writeProgramMemory = (emulator, length) => {
   var memory = "";
   const startpos = 0x200;
   for (var i = 0; i <= length; i = i + 2) {
-    var opcode = getOpcodeFromMemory(startpos + i);
-    memory += `<div class="program-listing-line" id="mem_${hex(startpos + i, 4)}">[${hex(startpos + i, 4)}]: ${dissassembleOpcode(opcode)} (${hex(
+    var opcode = emulator.getOpcodeFromMemory(startpos + i);
+    memory += `<div class="program-listing-line" id="mem_${hex(startpos + i, 4)}">[${hex(startpos + i, 4)}]: ${emulator.dissassembleOpcode(opcode)} (${hex(
       opcode,
       4
     )})</div>`;
@@ -113,26 +115,28 @@ const writeProgramMemory = (length) => {
   $(".memory #program-listing").html(memory);
 };
 
-const highlightCurrentOpcode = () => {
+const highlightCurrentOpcode = (emulator) => {
   var memoryElements = document.getElementsByClassName("program-listing-line");
   for (var i = 0; i < memoryElements.length; i++) {
-    memoryElements[i].style.background = "blue";
+    memoryElements[i].style.background = backgroundColour;
+    memoryElements[i].style.color = highlightColour;
   }
 
-  document.getElementById(`mem_${hex(chip8.get_pc(), 4)}`).style.background = "yellow";
+  document.getElementById(`mem_${hex(emulator.chip8.get_pc(), 4)}`).style.background = highlightColour;
+  document.getElementById(`mem_${hex(emulator.chip8.get_pc(), 4)}`).style.color = backgroundColour;
 };
 
-const writeRegisters = () => {
+const writeRegisters = (emulator) => {
   var registers = "";
 
   for (var i = 0; i < 16; i++) {
-    registers += `V${hex(i, 1)}: ${hex(vRegisters[i])}<br/>`;
+    registers += `V${hex(i, 1)}: ${hex(emulator.vRegisters[i])}<br/>`;
   }
 
-  registers += `PC: ${hex(chip8.get_pc(), 4)}<br/>`;
-  registers += ` I: ${hex(chip8.get_i(), 4)}<br/>`;
-  registers += `DT: ${hex(chip8.get_delay_timer())}<br/>`;
-  registers += `ST: ${hex(chip8.get_sound_timer())}<br/>`;
+  registers += `PC: ${hex(emulator.chip8.get_pc(), 4)}<br/>`;
+  registers += ` I: ${hex(emulator.chip8.get_i(), 4)}<br/>`;
+  registers += `DT: ${hex(emulator.chip8.get_delay_timer())}<br/>`;
+  registers += `ST: ${hex(emulator.chip8.get_sound_timer())}<br/>`;
 
   $(".memory #registers").html(registers);
 };
@@ -164,6 +168,22 @@ document.getElementById("go_button").onclick = function () {
   }
 };
 
+document.getElementById("reset_button").onclick = function () {
+  is_step_through = false;
+  is_running = false;
+
+  // wait 100ms before continuing reset. This should be enough time for
+  // the current renderLoop to complete
+  setTimeout(function () {
+    document.getElementById("go_button").value = "Run";
+    emulator = new Emulator();
+    writeProgramMemory(emulator, 256);
+    highlightCurrentOpcode(emulator);
+    writeRegisters(emulator);
+    emulator.updateDisplay();
+  }, 100);
+};
+
 window.hideOutput = function (id) {
   $(`#${id}`).toggle();
 };
@@ -172,28 +192,29 @@ window.hideOutput = function (id) {
 function renderLoop() {
   if (is_step_through) {
     //if we're stepping through, only execute one cycle every frame
-    chip8.execute_cycle();
+    emulator.chip8.execute_cycle();
   } else {
     //otherwise, execute 8 cycles on every frame (We want to run the emulation at close to 500Hz,
     // which is the normal operating clockspeed of the chip8. Since requestAnimationFrame() runs at
     // 60fps, executing 8 cycles per frame will give us a clockspeed of 480Hz).
     for (var i = 0; i < 8; i++) {
-      chip8.execute_cycle();
+      emulator.chip8.execute_cycle();
     }
   }
 
-  chip8.decrement_timers();
+  emulator.chip8.decrement_timers();
 
-  highlightCurrentOpcode();
-  writeRegisters();
-  updateDisplay();
+  highlightCurrentOpcode(emulator);
+  writeRegisters(emulator);
+  emulator.updateDisplay();
 
   if (is_running && !is_step_through) {
     requestAnimationFrame(renderLoop);
   }
 }
 
-writeProgramMemory(256);
-highlightCurrentOpcode();
-writeRegisters();
-updateDisplay();
+var emulator = new Emulator();
+writeProgramMemory(emulator, 256);
+highlightCurrentOpcode(emulator);
+writeRegisters(emulator);
+emulator.updateDisplay();

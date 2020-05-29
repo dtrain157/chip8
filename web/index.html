@@ -11,18 +11,19 @@
 
       h1 {
         font-family: "Righteous", cursive;
-      }
-
-      label {
-        font-family: "Righteous", cursive;
+        font-size: 5em;
       }
 
       div {
-        font-family: "Roboto", sans-serif;
+        font-family: "Roboto", sans-serif, monospace;
+      }
+
+      .label {
+        font-family: "Righteous", cursive;
       }
 
       .wrapper {
-        width: 512px;
+        width: 568px;
         margin-left: auto;
         margin-right: auto;
       }
@@ -34,6 +35,21 @@
         height: 260px;
         margin-top: 3px;
         text-align: center;
+        border-radius: 25px;
+        border: 8px solid blanchedalmond;
+        padding: 20px;
+      }
+
+      .button {
+        height: 50px;
+        width: 100px;
+        background: blanchedalmond;
+        border: 0;
+        padding-left: 20px;
+        padding-right: 20px;
+        color: darkslategrey;
+        font-family: "Righteous", cursive;
+        font-size: 1.5em;
       }
 
       #chip8-display {
@@ -42,14 +58,20 @@
         transform: scale(8);
         transform-origin: top left;
       }
+
+      .memory {
+        display: grid;
+        grid-template-columns: 50% 50%;
+        column-gap: 1em;
+      }
     </style>
-    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Roboto&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Roboto:wght@300&display=swap" rel="stylesheet" />
   </head>
   <body>
     <div class="wrapper">
       <h1>Hello, chip8!</h1>
 
-      <div>Chip8 emulator written in Rust, and running in the browser as WebAssembly.</div>
+      <div>Chip8 emulator written in Rust, and running in the browser as a WebAssembly module.</div>
 
       <div>
         <span class="label">SELECT ROM:</span>
@@ -57,8 +79,10 @@
       </div>
 
       <div class="control">
-        <input class="checkbox" id="step" type="checkbox" value="Step Through" /><label for="step">Step through the programme</label><br />
         <input class="button" id="go_button" type="button" value="Run" />
+        <input class="button" id="reset_button" type="button" value="Reset" />
+        <br />
+        <label class="label" for="step">Enable programme step-through?: </label><input class="checkbox" id="step" type="checkbox" value="Step Through" />
       </div>
 
       <div class="screen">
