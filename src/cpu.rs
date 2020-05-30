@@ -269,6 +269,22 @@ impl CPU {
         self.sound_timer
     }
 
+    pub fn clear_pc(&mut self) {
+        self.pc = 0x200;
+    }
+
+    pub fn clear_i(&mut self) {
+        self.i = 0;
+    }
+
+    pub fn clear_delay_timer(&mut self) {
+        self.delay_timer = 0;
+    }
+
+    pub fn clear_sound_timer(&mut self) {
+        self.sound_timer = 0;
+    }
+
     pub fn decrement_timers(&mut self) {
         if self.delay_timer > 0 {
             self.delay_timer = self.delay_timer - 1;
@@ -737,11 +753,11 @@ mod cpu_tests {
 
         let opcode = 0xF015; //load v[0] into DT
         cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
-        assert_eq!(cpu.delay_timer, 0x21);
+        assert_eq!(cpu.delay_timer, 0x22);
 
         let opcode = 0xF107; //load DT into v[1]
         cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
-        assert_eq!(cpu.v[1], 0x21);
+        assert_eq!(cpu.v[1], 0x22);
     }
 
     #[test]
@@ -757,7 +773,7 @@ mod cpu_tests {
 
         let opcode = 0xF018; //load v[0] into ST
         cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
-        assert_eq!(cpu.sound_timer, 0x21);
+        assert_eq!(cpu.sound_timer, 0x22);
     }
 
     #[test]

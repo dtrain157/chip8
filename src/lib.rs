@@ -75,6 +75,13 @@ impl Chip8 {
         self.cpu.get_sound_timer()
     }
 
+    pub fn clear_control_registers(&mut self) {
+        self.cpu.clear_pc();
+        self.cpu.clear_i();
+        self.cpu.clear_delay_timer();
+        self.cpu.clear_sound_timer();
+    }
+
     pub fn decrement_timers(&mut self) {
         self.cpu.decrement_timers();
     }

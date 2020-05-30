@@ -8,5 +8,5 @@ module.exports = {
     path: path.resolve(__dirname, "dist"),
     filename: "chip8.js",
   },
-  plugins: [new CopyWebpackPlugin(["index.html"])],
+  plugins: [new CopyWebpackPlugin(["index.html", "style.css", { from: "roms", to: "roms" }])],
 };

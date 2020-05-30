@@ -6,6 +6,38 @@ import { memory } from "chip8/chip8_bg";
 const backgroundColour = getComputedStyle(document.body).backgroundColor;
 const highlightColour = getComputedStyle(document.body).color;
 
+/**** ROMS ****/
+const ROMS = [
+  "15PUZZLE",
+  "BLINKY",
+  "BLITZ",
+  "BRIX",
+  "CONNECT4",
+  "GUESS",
+  "HIDDEN",
+  "IBM",
+  "INVADERS",
+  "KALEID",
+  "MAZE",
+  "MERLIN",
+  "MISSILE",
+  "PONG",
+  "PONG2",
+  "PUZZLE",
+  "SYZYGY",
+  "TANK",
+  "TETRIS",
+  "TICTAC",
+  "UFO",
+  "VBRIX",
+  "VERS",
+  "WIPEOFF"
+];
+
+ROMS.forEach(rom => {
+  $("#roms").append(`<option value='${rom}'>${rom}</option>`);
+});
+
 /**** HELPER FUCTIONS ****/
 const hex = (value, length = 2) => {
   const padded = "0000" + value.toString(16).toUpperCase();
@@ -44,6 +76,25 @@ class Emulator {
       imageData.data[i * 4 + 3] = 0xff;
     }
     this.ctx.putImageData(imageData, 0, 0);
+  }
+
+  clearDisplay() {
+    for (var i = 0; i < this.displayWidth * this.displayHeight; i++) {
+      this.displayMemory[i] = 0;
+    }
+  }
+
+  clearMemory() {
+    for (var i = 0x200; i < this.memorySize; i++) {
+      this.mainMemory[i] = 0;
+    }
+  }
+
+  clearRegisters() {
+    for (var i = 0; i < 16; i++) {
+      this.vRegisters[i] = 0;
+    }
+    this.chip8.clear_control_registers();
   }
 
   getOpcodeFromMemory(pc) {
@@ -112,7 +163,7 @@ const writeProgramMemory = (emulator, length) => {
     )})</div>`;
   }
 
-  $(".memory #program-listing").html(memory);
+  $("#memory #program-listing").html(memory);
 };
 
 const highlightCurrentOpcode = (emulator) => {
@@ -138,7 +189,7 @@ const writeRegisters = (emulator) => {
   registers += `DT: ${hex(emulator.chip8.get_delay_timer())}<br/>`;
   registers += `ST: ${hex(emulator.chip8.get_sound_timer())}<br/>`;
 
-  $(".memory #registers").html(registers);
+  $("#memory #registers").html(registers);
 };
 
 /**** BUTTONS ****/
@@ -168,53 +219,89 @@ document.getElementById("go_button").onclick = function () {
   }
 };
 
-document.getElementById("reset_button").onclick = function () {
+const resetEmulator = () => {
   is_step_through = false;
   is_running = false;
 
-  // wait 100ms before continuing reset. This should be enough time for
-  // the current renderLoop to complete
-  setTimeout(function () {
-    document.getElementById("go_button").value = "Run";
-    emulator = new Emulator();
-    writeProgramMemory(emulator, 256);
-    highlightCurrentOpcode(emulator);
-    writeRegisters(emulator);
-    emulator.updateDisplay();
-  }, 100);
+  document.getElementById("go_button").value = "Run";
+
+  em.clearDisplay();
+  em.clearMemory();
+  em.clearRegisters();
+}
+
+document.getElementById("reset_button").onclick = function () {
+  resetEmulator()
 };
 
 window.hideOutput = function (id) {
   $(`#${id}`).toggle();
+  if ($(`#hide-button-${id}`).val().localeCompare("+") == 0) {
+    $(`#hide-button-${id}`).val("-");
+  } else {
+    $(`#hide-button-${id}`).val("+");
+  }
 };
+
+const loadRom = (rom) => {
+  fetch(`roms/${rom}`)
+    .then(romData => romData.arrayBuffer())
+    .then(romDataArrayBuffer => {
+      resetEmulator();
+      const romDataView = new DataView(romDataArrayBuffer, 0, romDataArrayBuffer.byteLength);
+      for (var i = 0; i < romDataView.byteLength; i++) {
+        em.mainMemory[0x200 + i] = romDataView.getUint8(i);
+      }
+    })
+    .then(_ => {
+      writeProgramMemory(em, 256);
+      highlightCurrentOpcode(em);
+      writeRegisters(em);
+      em.updateDisplay();
+    });
+}
+
+document.getElementById("roms").addEventListener("change", e => {
+  loadRom(e.target.value);
+});
+
+document.getElementById("roms").value = "PONG";
+
 
 /**** EMULATION LOOP ****/
 function renderLoop() {
   if (is_step_through) {
     //if we're stepping through, only execute one cycle every frame
-    emulator.chip8.execute_cycle();
+    em.chip8.execute_cycle();
   } else {
     //otherwise, execute 8 cycles on every frame (We want to run the emulation at close to 500Hz,
     // which is the normal operating clockspeed of the chip8. Since requestAnimationFrame() runs at
     // 60fps, executing 8 cycles per frame will give us a clockspeed of 480Hz).
     for (var i = 0; i < 8; i++) {
-      emulator.chip8.execute_cycle();
+      em.chip8.execute_cycle();
+      if (!is_running)
+        break;
     }
   }
 
-  emulator.chip8.decrement_timers();
+  if (is_running)
+    em.chip8.decrement_timers();
 
-  highlightCurrentOpcode(emulator);
-  writeRegisters(emulator);
-  emulator.updateDisplay();
+  if (is_running)
+    highlightCurrentOpcode(em);
+
+  if (is_running)
+    writeRegisters(em);
+
+  if (is_running)
+    em.updateDisplay();
 
   if (is_running && !is_step_through) {
     requestAnimationFrame(renderLoop);
   }
 }
 
-var emulator = new Emulator();
-writeProgramMemory(emulator, 256);
-highlightCurrentOpcode(emulator);
-writeRegisters(emulator);
-emulator.updateDisplay();
+var em = new Emulator();
+loadRom("PONG");
+
+

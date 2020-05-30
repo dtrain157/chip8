@@ -1,0 +1,149 @@
+body {
+  background-color: darkslategrey;
+  color: blanchedalmond;
+}
+
+a {
+  color: blanchedalmond;
+}
+
+h1 {
+  font-family: "Righteous", cursive;
+  font-size: 5em;
+  margin-top: 0em;
+  margin-bottom: 0em;
+}
+
+h2 {
+  font-family: "Righteous", cursive;
+}
+
+ul {
+  font-family: "Roboto", sans-serif, monospace;
+  font-size: 11pt;
+  padding: 0 20px 0 20px;
+  margin-top: 3px;
+}
+
+
+/****** SELECT ******/
+/* Reset Select */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  -ms-appearance: none;
+  appearance: none;
+  outline: 0;
+  box-shadow: none;
+  border: 0 !important;
+  background: blanchedalmond;
+  background-image: none;
+}
+
+/* Custom Select */
+.roms {
+  position: relative;
+  display: flex;
+  width: 30em;
+  height: 3em;
+  line-height: 10;
+  background: blanchedalmond;
+  overflow: hidden;
+  border-radius: 0.25em;
+  
+}
+
+select {
+  flex: 1;
+  padding: 0 0.5em;
+  color: darkslategrey;
+  cursor: pointer;
+  font-family: "Roboto", sans-serif, monospace;
+  font-size: 15pt;
+  border-radius: 10px;
+  border: 1px solid blanchedalmond;
+}
+
+select:hover {
+  background-color: white;
+}
+
+select:focus {
+  background-color: blanchedalmond;
+}
+
+option {
+  font-family: "Roboto", sans-serif, monospace;
+  font-size: 15pt;
+}
+/********************/
+
+
+input + input {
+  margin-left: 50px;
+}
+
+.label {
+  font-family: "Righteous", cursive;
+}
+
+.wrapper {
+  width: 545px;
+  margin-left: auto;
+  margin-right: auto;
+  text-align: center;
+}
+
+#screen {
+  image-rendering: -moz-crisp-edges;
+  image-rendering: -webkit-crisp-edges;
+  image-rendering: pixelated;
+  height: 270px;
+  margin-top: 3px;
+  text-align: center;
+  border-radius: 24px;
+  border: 8px solid blanchedalmond;
+  transform-origin: top left;
+}
+
+.button {
+  height: 50px;
+  width: 100px;
+  background: blanchedalmond;
+  border: 0;
+  padding-left: 20px;
+  padding-right: 20px;
+  color: darkslategrey;
+  font-family: "Righteous", cursive;
+  font-size: 1.5em;
+}
+
+.hide-button {
+  height: 30px;
+  width: 30px;
+  background: blanchedalmond;
+  color: darkslategrey;
+  font-family: "Righteous", cursive;
+  font-size: 1.5em;
+  border-radius: 10px;
+  border: 1px solid blanchedalmond;
+  text-decoration: none;
+  padding: 0px;
+}
+
+#chip8-display {
+  position: relative;
+  display: block;
+  transform: scale(8);
+  transform-origin: top left;
+  border-radius: 2px;
+  border: 1px solid black;
+  transform-origin: top left;
+}
+
+#memory {
+  display: grid;
+  grid-template-columns: 50% 50%;
+  column-gap: 1em;
+  text-align: left;
+}
