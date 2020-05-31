@@ -31,10 +31,10 @@ const ROMS = [
   "UFO",
   "VBRIX",
   "VERS",
-  "WIPEOFF"
+  "WIPEOFF",
 ];
 
-ROMS.forEach(rom => {
+ROMS.forEach((rom) => {
   $("#roms").append(`<option value='${rom}'>${rom}</option>`);
 });
 
@@ -157,10 +157,10 @@ const writeProgramMemory = (emulator, length) => {
   const startpos = 0x200;
   for (var i = 0; i <= length; i = i + 2) {
     var opcode = emulator.getOpcodeFromMemory(startpos + i);
-    memory += `<div class="program-listing-line" id="mem_${hex(startpos + i, 4)}">[${hex(startpos + i, 4)}]: ${emulator.dissassembleOpcode(opcode)} (${hex(
+    memory += `<li class="program-listing-line" id="mem_${hex(startpos + i, 4)}">[${hex(startpos + i, 4)}]: ${emulator.dissassembleOpcode(opcode)} (${hex(
       opcode,
       4
-    )})</div>`;
+    )})</li>`;
   }
 
   $("#memory #program-listing").html(memory);
@@ -173,8 +173,11 @@ const highlightCurrentOpcode = (emulator) => {
     memoryElements[i].style.color = highlightColour;
   }
 
-  document.getElementById(`mem_${hex(emulator.chip8.get_pc(), 4)}`).style.background = highlightColour;
-  document.getElementById(`mem_${hex(emulator.chip8.get_pc(), 4)}`).style.color = backgroundColour;
+  const elementToUpdate = document.getElementById(`mem_${hex(emulator.chip8.get_pc(), 4)}`);
+  if (elementToUpdate) {
+    elementToUpdate.style.background = highlightColour;
+    elementToUpdate.style.color = backgroundColour;
+  }
 };
 
 const writeRegisters = (emulator) => {
@@ -220,7 +223,11 @@ document.getElementById("go_button").onclick = function () {
 };
 
 const resetEmulator = () => {
-  is_step_through = false;
+  if (is_step_through) {
+    document.getElementById("step").checked = false;
+    is_step_through = false;
+  }
+
   is_running = false;
 
   document.getElementById("go_button").value = "Run";
@@ -228,7 +235,7 @@ const resetEmulator = () => {
   em.clearDisplay();
   em.clearRegisters();
   em.clearMemory();
-}
+};
 
 document.getElementById("reset_button").onclick = function () {
   loadRom(document.getElementById("roms").value);
@@ -248,34 +255,32 @@ window.hideOutput = function (id) {
 
 const loadRom = (rom) => {
   fetch(`roms/${rom}`)
-    .then(romData => romData.arrayBuffer())
-    .then(romDataArrayBuffer => {
+    .then((romData) => romData.arrayBuffer())
+    .then((romDataArrayBuffer) => {
       resetEmulator();
       const romDataView = new DataView(romDataArrayBuffer, 0, romDataArrayBuffer.byteLength);
       for (var i = 0; i < romDataView.byteLength; i++) {
         em.mainMemory[0x200 + i] = romDataView.getUint8(i);
       }
-    })
-    .then(_ => {
-      writeProgramMemory(em, 256);
+      writeProgramMemory(em, romDataView.byteLength);
       highlightCurrentOpcode(em);
       writeRegisters(em);
       em.updateDisplay();
     });
-}
+};
 
-document.getElementById("roms").addEventListener("change", e => {
+document.getElementById("roms").addEventListener("change", (e) => {
   loadRom(e.target.value);
+  document.getElementById("roms").blur();
 });
 
 document.getElementById("roms").value = "PONG";
-
 
 /**** EMULATION LOOP ****/
 function renderLoop() {
   if (is_step_through) {
     //if we're stepping through, only execute one cycle every frame
-    console.log(hex(em.chip8.get_pc(), 4) + "   " + hex(em.getOpcodeFromMemory(em.chip8.get_pc()), 4));
+
     em.chip8.execute_cycle();
     em.chip8.decrement_timers();
   } else if (is_running) {
@@ -284,11 +289,9 @@ function renderLoop() {
     // 60fps, executing 8 cycles per frame will give us a clockspeed of 480Hz).
     for (var i = 0; i < 8; i++) {
       em.chip8.execute_cycle();
-      if (!is_running)
-        break;
+      if (!is_running) break;
     }
-    if (is_running)
-      em.chip8.decrement_timers();
+    if (is_running) em.chip8.decrement_timers();
   }
 
   highlightCurrentOpcode(em);
@@ -302,5 +305,3 @@ function renderLoop() {
 
 var em = new Emulator();
 loadRom("PONG");
-
-

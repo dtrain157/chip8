@@ -43,7 +43,7 @@ impl Display {
 
     fn wrap(&self, value: usize, max_value: usize) -> usize {
         let mut wrapped_value: usize = value;
-        while wrapped_value > max_value {
+        while wrapped_value >= max_value {
             wrapped_value = wrapped_value - max_value;
         }
         wrapped_value

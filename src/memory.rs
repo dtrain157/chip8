@@ -67,7 +67,7 @@ impl Memory {
     pub fn read_multiple_bytes(&self, index: usize, bytes: u8) -> Result<&[u8], MemoryError> {
         let from = index;
         let to = index + (bytes as usize);
-        if (from + to) >= MEMORY_SIZE {
+        if to >= MEMORY_SIZE {
             return Err(MemoryError::InvalidAddress(from + to));
         }
         Ok(&self.memory[from..to])

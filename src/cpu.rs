@@ -168,6 +168,8 @@ impl CPU {
                     Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
                 };
                 let location = (self.v[x] as usize, self.v[y] as usize);
+                println!("LOCATION>>>> {:?}", location);
+                println!("DATA>>>> {:?}", data);
                 self.v[0xF] = display.draw(data, location) as u8;
             }
             //SKP Vx
@@ -223,7 +225,7 @@ impl CPU {
             }
             //LD I Vx
             (0xF, _, 0x5, 0x5) => {
-                for j in 0..x {
+                for j in 0..(x+1) {
                     match memory.write_byte((self.i as usize) + j, self.v[j]) {
                         Ok(_) => {}
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -232,7 +234,7 @@ impl CPU {
             }
             //LD Vx I
             (0xF, _, 0x6, 0x5) => {
-                for j in 0..x + 1 {
+                for j in 0..(x+1) {
                     self.v[j] = match memory.read_byte((self.i as usize) + j) {
                         Ok(byte) => byte,
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -700,7 +702,7 @@ mod cpu_tests {
     }
 
     #[test]
-    fn cpu_drw_vx_vy_nibble() {
+    fn cpu_drw_vx_vy_n() {
         let mut cpu = CPU::new();
         let mut disp = Display::new();
         let mut memory = Memory::new();
@@ -733,11 +735,44 @@ mod cpu_tests {
         let expected_byte4 = vec![1, 0, 0, 1, 0, 0, 0, 0];
         let expected_byte5 = vec![1, 1, 1, 1, 0, 0, 0, 0];
 
+
         assert!(expected_byte1.len() == display_byte1.len() && expected_byte1 == display_byte1);
-        assert!(expected_byte2.len() == display_byte2.len() && expected_byte1 == display_byte1);
-        assert!(expected_byte3.len() == display_byte3.len() && expected_byte1 == display_byte1);
-        assert!(expected_byte4.len() == display_byte4.len() && expected_byte1 == display_byte1);
-        assert!(expected_byte5.len() == display_byte5.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte2.len() == display_byte2.len() && expected_byte2 == display_byte2);
+        assert!(expected_byte3.len() == display_byte3.len() && expected_byte3 == display_byte3);
+        assert!(expected_byte4.len() == display_byte4.len() && expected_byte4 == display_byte4);
+        assert!(expected_byte5.len() == display_byte5.len() && expected_byte5 == display_byte5);
+    }
+
+    #[test]
+    fn cpu_drw_vx_vy_n_2() {
+        let mut cpu = CPU::new();
+        let mut disp = Display::new();
+        let mut memory = Memory::new();
+        let keyboard = Keyboard::new();
+
+        let opcode = 0xA911; //load the value 2321 into I
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6200; //load 0x00 into v[2]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+        let opcode = 0x6300; //load 0x00 into v[3]
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+        memory.write_byte(2321, 192).unwrap();
+        memory.write_byte(2322, 128).unwrap();
+
+        let opcode = 0xD232; //Draw 2 bytes onto the display at (0,0)
+        cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
+
+
+        let display_byte1 = &disp.memory[0..8];
+        let display_byte2 = &disp.memory[crate::display::COLUMNS..crate::display::COLUMNS + 8];
+
+        let expected_byte1 = vec![1, 1, 0, 0, 0, 0, 0, 0];
+        let expected_byte2 = vec![1, 0, 0, 0, 0, 0, 0, 0];
+
+
+        assert!(expected_byte1.len() == display_byte1.len() && expected_byte1 == display_byte1);
+        assert!(expected_byte2.len() == display_byte2.len() && expected_byte2 == display_byte2);
     }
 
     #[test]
@@ -994,6 +1029,9 @@ mod cpu_tests {
         assert_eq!(cpu.v[0xE], 0x00);
         assert_eq!(cpu.v[0xF], 0x00);
     }
+
+
+    
 }
 
 /*
