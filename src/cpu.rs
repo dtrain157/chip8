@@ -223,7 +223,7 @@ impl CPU {
             }
             //LD I Vx
             (0xF, _, 0x5, 0x5) => {
-                for j in 0..REGISTER_COUNT {
+                for j in 0..x {
                     match memory.write_byte((self.i as usize) + j, self.v[j]) {
                         Ok(_) => {}
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),

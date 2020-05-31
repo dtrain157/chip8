@@ -226,12 +226,15 @@ const resetEmulator = () => {
   document.getElementById("go_button").value = "Run";
 
   em.clearDisplay();
-  em.clearMemory();
   em.clearRegisters();
+  em.clearMemory();
 }
 
 document.getElementById("reset_button").onclick = function () {
-  resetEmulator()
+  loadRom(document.getElementById("roms").value);
+  highlightCurrentOpcode(em);
+  writeRegisters(em);
+  em.updateDisplay();
 };
 
 window.hideOutput = function (id) {
@@ -272,8 +275,10 @@ document.getElementById("roms").value = "PONG";
 function renderLoop() {
   if (is_step_through) {
     //if we're stepping through, only execute one cycle every frame
+    console.log(hex(em.chip8.get_pc(), 4) + "   " + hex(em.getOpcodeFromMemory(em.chip8.get_pc()), 4));
     em.chip8.execute_cycle();
-  } else {
+    em.chip8.decrement_timers();
+  } else if (is_running) {
     //otherwise, execute 8 cycles on every frame (We want to run the emulation at close to 500Hz,
     // which is the normal operating clockspeed of the chip8. Since requestAnimationFrame() runs at
     // 60fps, executing 8 cycles per frame will give us a clockspeed of 480Hz).
@@ -282,19 +287,13 @@ function renderLoop() {
       if (!is_running)
         break;
     }
+    if (is_running)
+      em.chip8.decrement_timers();
   }
 
-  if (is_running)
-    em.chip8.decrement_timers();
-
-  if (is_running)
-    highlightCurrentOpcode(em);
-
-  if (is_running)
-    writeRegisters(em);
-
-  if (is_running)
-    em.updateDisplay();
+  highlightCurrentOpcode(em);
+  writeRegisters(em);
+  em.updateDisplay();
 
   if (is_running && !is_step_through) {
     requestAnimationFrame(renderLoop);

@@ -1,75 +1,82 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Hello Chip8!</title>
-    <link rel="stylesheet" href="./style.css" />
-    <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Roboto&display=swap" rel="stylesheet" />
-  </head>
-  <body>
-    <div class="wrapper">
-      <header>
-        <h1>Hello, CHIP-8!</h1>
 
-        <h2>
-          A <a href="https://en.wikipedia.org/wiki/CHIP-8">CHIP-8</a> emulator written in <a href="https://www.rust-lang.org/">Rust</a>, and comipled to
-          <a href="https://webassembly.org/">WebAssembly</a> to run in the browser.
-        </h2>
-      </header>
-      <br />
+<head>
+  <meta charset="utf-8" />
+  <title>Hello Chip8!</title>
+  <link rel="stylesheet" href="./style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Righteous&family=Roboto&display=swap" rel="stylesheet" />
+</head>
 
-      <div id="instruction-wrapper">
-        <input class="hide-button" id="hide-button-instructions" type="button" value="+" onclick="hideOutput('instructions')" />
-        <span class="label" id="instructions-label">INSTRUCTIONS</span>
-        <div id="instructions" style="display: none;">
-          <ul>
-            Select a ROM, and click RUN to power up the emulator.
-          </ul>
-          <ul>
-            Enable the step-through checkbox to step through the programme a single instruction at a time.
-          </ul>
-          <ul>
-            The programme listing and the contents of the registers are displayed below the screen.
-          </ul>
-        </div>
-      </div>
-      <br />
+<body>
+  <div class="wrapper">
+    <header>
+      <h1>Hello, CHIP-8!</h1>
 
-      <div id="control">
-        <span class="label">SELECT ROM: </span>
-        <select class="drowpdown" id="roms"></select>
-        <br />
-        <br />
-        <input class="button" id="go_button" type="button" value="Run" />
-        <input class="button" id="reset_button" type="button" value="Reset" />
-        <br />
-        <br />
-        <label class="label" for="step">Enable programme step-through?: </label>
-        <input class="checkbox" id="step" type="checkbox" value="Step Through" />
-      </div>
+      <h2>
+        A <a href="https://en.wikipedia.org/wiki/CHIP-8">CHIP-8</a> emulator written in <a
+          href="https://www.rust-lang.org/">Rust</a>, and comipled to
+        <a href="https://webassembly.org/">WebAssembly</a> to run in the browser.
+      </h2>
+    </header>
+    <br />
 
-      <br />
-
-      <div id="screen">
-        <canvas id="chip8-display" width="64" height="32"></canvas>
-      </div>
-
-      <br />
-
-      <div id="memory">
-        <div>
-          <input class="hide-button" id="hide-button-program-listing" type="button" value="+" onclick="hideOutput('program-listing')" />
-          <span class="label">PROGRAMME LISTING</span>
-          <div id="program-listing" style="display: none;"></div>
-        </div>
-        <div>
-          <input class="hide-button" id="hide-button-registers" type="button" value="+" onclick="hideOutput('registers')" />
-          <span class="label">REGISTER VALUES</span>
-          <div id="registers" style="display: none;"></div>
-        </div>
+    <div id="instruction-wrapper">
+      <input class="hide-button" id="hide-button-instructions" type="button" value="+"
+        onclick="hideOutput('instructions')" />
+      <span class="label" id="instructions-label">INSTRUCTIONS</span>
+      <div id="instructions" style="display: none;">
+        <ul>
+          Select a ROM, and click RUN to power up the emulator.
+        </ul>
+        <ul>
+          Enable the step-through checkbox to step through the programme a single instruction at a time.
+        </ul>
+        <ul>
+          The programme listing and the contents of the registers are displayed below the screen.
+        </ul>
       </div>
     </div>
+    <br />
 
-    <script src="./chip8.js"></script>
-  </body>
+    <div id="control">
+      <span class="label">SELECT ROM </span>
+      <select class="drowpdown" id="roms"></select>
+      <br />
+      <br />
+      <input class="button" id="go_button" type="button" value="Run" />
+      <input class="button" id="reset_button" type="button" value="Reset" />
+      <br />
+      <br />
+      <label class="label" for="step">Enable programme step-through?: </label>
+      <input class="checkbox" id="step" type="checkbox" value="Step Through" />
+    </div>
+
+    <br />
+
+    <div id="screen">
+      <canvas id="chip8-display" width="64" height="32"></canvas>
+    </div>
+
+    <br />
+
+    <div id="memory">
+      <div>
+        <input class="hide-button" id="hide-button-program-listing" type="button" value="+"
+          onclick="hideOutput('program-listing')" />
+        <span class="label">PROGRAMME LISTING</span>
+        <div id="program-listing" style="display: none;"></div>
+      </div>
+      <div>
+        <input class="hide-button" id="hide-button-registers" type="button" value="+"
+          onclick="hideOutput('registers')" />
+        <span class="label">REGISTER VALUES</span>
+        <div id="registers" style="display: none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="./chip8.js"></script>
+</body>
+
 </html>
