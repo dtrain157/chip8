@@ -1,6 +1,6 @@
-# Hello, CHIP8!
+# Hello, CHIP-8!
 
-A CHIP8 emulator written in Rust, meant to be compiled to WebAssembly and run in the browser.
+A [CHIP-8](https://en.wikipedia.org/wiki/CHIP-8) emulator written in Rust, meant to be compiled to WebAssembly and run in the browser.
 
 The emulator is hosted on the accompanying [github pages site](https://dtrain157.github.io/chip8/).
 
