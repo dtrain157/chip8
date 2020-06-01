@@ -188,7 +188,7 @@ impl CPU {
                         self.pc = self.pc + 2;
                     }
                 }
-                None => {}
+                None => self.pc = self.pc + 2,
             },
             //LD Vx DT
             (0xF, _, 0x0, 0x7) => self.v[x] = self.delay_timer,
@@ -225,7 +225,7 @@ impl CPU {
             }
             //LD I Vx
             (0xF, _, 0x5, 0x5) => {
-                for j in 0..(x+1) {
+                for j in 0..(x + 1) {
                     match memory.write_byte((self.i as usize) + j, self.v[j]) {
                         Ok(_) => {}
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -234,7 +234,7 @@ impl CPU {
             }
             //LD Vx I
             (0xF, _, 0x6, 0x5) => {
-                for j in 0..(x+1) {
+                for j in 0..(x + 1) {
                     self.v[j] = match memory.read_byte((self.i as usize) + j) {
                         Ok(byte) => byte,
                         Err(e) => return Err(CPUError::ErrorAccessingMemory(e)),
@@ -735,7 +735,6 @@ mod cpu_tests {
         let expected_byte4 = vec![1, 0, 0, 1, 0, 0, 0, 0];
         let expected_byte5 = vec![1, 1, 1, 1, 0, 0, 0, 0];
 
-
         assert!(expected_byte1.len() == display_byte1.len() && expected_byte1 == display_byte1);
         assert!(expected_byte2.len() == display_byte2.len() && expected_byte2 == display_byte2);
         assert!(expected_byte3.len() == display_byte3.len() && expected_byte3 == display_byte3);
@@ -763,13 +762,11 @@ mod cpu_tests {
         let opcode = 0xD232; //Draw 2 bytes onto the display at (0,0)
         cpu.process_opcode(opcode, &mut disp, &mut memory, &keyboard).unwrap();
 
-
         let display_byte1 = &disp.memory[0..8];
         let display_byte2 = &disp.memory[crate::display::COLUMNS..crate::display::COLUMNS + 8];
 
         let expected_byte1 = vec![1, 1, 0, 0, 0, 0, 0, 0];
         let expected_byte2 = vec![1, 0, 0, 0, 0, 0, 0, 0];
-
 
         assert!(expected_byte1.len() == display_byte1.len() && expected_byte1 == display_byte1);
         assert!(expected_byte2.len() == display_byte2.len() && expected_byte2 == display_byte2);
@@ -1029,33 +1026,4 @@ mod cpu_tests {
         assert_eq!(cpu.v[0xE], 0x00);
         assert_eq!(cpu.v[0xF], 0x00);
     }
-
-
-    
 }
-
-/*
-//SKP Vx
-(0xE, _, 0x9, 0xE) => match keyboard.get_key_pressed() {
-    Some(key) => {
-        if self.v[x] == key {
-            self.pc = self.pc + 2;
-        }
-    }
-    None => {}
-},
-//SKNP Vx
-(0xE, _, 0xA, 0x1) => match keyboard.get_key_pressed() {
-    Some(key) => {
-        if self.v[x] != key {
-            self.pc = self.pc + 2;
-        }
-    }
-    None => {}
-},
-//LD Vx K
-(0xF, _, 0x0, 0xA) => match keyboard.get_key_pressed() {
-    Some(key) => self.v[x] = key,
-    None => should_update_pc_after_processing = false,
-},
-*/

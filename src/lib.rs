@@ -89,4 +89,19 @@ impl Chip8 {
     pub fn get_v_registers(&self) -> *const u8 {
         self.cpu.get_v_registers().as_ptr()
     }
+
+    pub fn press_key(&mut self, key: u8) {
+        self.keyboard.press_key(key);
+    }
+
+    pub fn release_key(&mut self, key: u8) {
+        match self.keyboard.get_key_pressed() {
+            Some(currently_pressed) => {
+                if currently_pressed == key {
+                    self.keyboard.release_key();
+                }
+            }
+            None => {}
+        }
+    }
 }

@@ -40,12 +40,20 @@ ul {
   font-size: 11pt;
   padding: 0 20px 0 20px;
   margin-top: 3px;
+  text-align: left;
 }
 
 #instructions {
   padding-top: 15px;
   border-radius: 24px;
   border: 5px solid blanchedalmond;
+}
+
+img {
+  margin-top: 10px;
+  width: 100%;
+  border-radius: 24px;
+  border: 3px solid blanchedalmond;
 }
 /**************************/
 

@@ -276,8 +276,64 @@ document.getElementById("roms").addEventListener("change", (e) => {
 
 document.getElementById("roms").value = "PONG";
 
+/**** KEYBOARD ****/
+var keyMap = {
+  1: 0x1,
+  2: 0x2,
+  3: 0x3,
+  4: 0xc,
+  Q: 0x4,
+  W: 0x5,
+  E: 0x6,
+  R: 0xd,
+  A: 0x7,
+  S: 0x8,
+  D: 0x9,
+  F: 0xe,
+  Z: 0xa,
+  X: 0x0,
+  C: 0xb,
+  V: 0xf,
+  q: 0x4,
+  w: 0x5,
+  e: 0x6,
+  r: 0xd,
+  a: 0x7,
+  s: 0x8,
+  d: 0x9,
+  f: 0xe,
+  z: 0xa,
+  x: 0x0,
+  c: 0xb,
+  v: 0xf,
+};
+
+document.addEventListener("keydown", function (event) {
+  if (keyMap[event.key]) {
+    em.chip8.press_key(keyMap[event.key]);
+  }
+});
+
+document.addEventListener("keyup", function (event) {
+  if (keyMap[event.key]) {
+    em.chip8.release_key(keyMap[event.key]);
+  }
+});
+/******************/
+
+/**** SOUND ****/
+var audio = new Audio("./assets/sound.wav");
+/***************/
+
 /**** EMULATION LOOP ****/
 function renderLoop() {
+  if (em.chip8.get_sound_timer() > 0) {
+    audio.play();
+  } else {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+
   if (is_step_through) {
     //if we're stepping through, only execute one cycle every frame
 
